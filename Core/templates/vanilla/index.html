@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RitaWapp Vanilla App</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #121217;
+      color: #f3f4f6;
+    }
+    .card {
+      background: #1c1c24;
+      border: 1px solid #2e2e38;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 680px;
+      margin: 0 auto;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: #38bdf8;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 12px;
+      background: #0284c7;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      vertical-align: middle;
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #0369a1;
+    }
+    pre {
+      background: #101014;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      color: #a5f3fc;
+      min-height: 80px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" data-testid="ritawapp-app-root">
+    <h1>RitaWapp <span class="badge">Vanilla JS</span></h1>
+    <p>Ultra-lightweight native C runtime + WebUI desktop application.</p>
+    <p id="status" style="color: #4ade80; font-size: 14px;">Connecting to native bridge...</p>
+    <div class="actions">
+      <button onclick="testDatabase()">Test SQLite Engine</button>
+      <button onclick="testSystemInfo()">Get OS Info</button>
+    </div>
+    <pre id="output">Click a button above to test native RPC.</pre>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

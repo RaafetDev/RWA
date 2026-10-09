@@ -1,0 +1,13 @@
+{
+  "name": "fetch",
+  "version": "1.0.1",
+  "description": "WHATWG-compliant fetch engine running over Cesanta Mongoose net.",
+  "requiresMongoose": true,
+  "requiresSqlite": false,
+  "dependencies": [
+    "http"
+  ],
+  "actions": [
+    "fetch"
+  ]
+}

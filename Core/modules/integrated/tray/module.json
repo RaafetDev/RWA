@@ -1,0 +1,15 @@
+{
+  "name": "tray",
+  "version": "1.0.1",
+  "description": "Native Win32 system tray icon, context menu pump, and minimize-to-tray handling.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "set",
+    "items",
+    "appShow",
+    "appHide",
+    "setTooltip"
+  ]
+}

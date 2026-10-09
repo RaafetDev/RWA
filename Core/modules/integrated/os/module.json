@@ -1,0 +1,22 @@
+{
+  "name": "os",
+  "version": "1.0.1",
+  "description": "Operating system information, hardware identification, and machine fingerprinting.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "platform",
+    "arch",
+    "release",
+    "hostname",
+    "homedir",
+    "tmpdir",
+    "totalmem",
+    "freemem",
+    "uptime",
+    "getMetrics",
+    "fingerprint",
+    "getInfo"
+  ]
+}

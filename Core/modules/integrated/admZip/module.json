@@ -1,0 +1,18 @@
+{
+  "name": "admZip",
+  "version": "1.0.1",
+  "description": "ZIP archive decompression and creation with strict Zip-Slip protection.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "addFile",
+    "addLocalFile",
+    "getEntries",
+    "readAsText",
+    "readFile",
+    "extractAllTo",
+    "extractEntryTo",
+    "writeZip"
+  ]
+}

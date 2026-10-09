@@ -1,0 +1,15 @@
+{
+  "name": "net",
+  "version": "1.0.1",
+  "description": "Winsock2 TCP server and client implementation mimicking Node.js net.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "createServer",
+    "connect",
+    "isIP",
+    "isIPv4",
+    "isIPv6"
+  ]
+}

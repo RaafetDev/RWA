@@ -1,0 +1,890 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {
+    "title": "RitaWapp wsApi Protocol",
+    "version": "1.0.1",
+    "description": "Realtime WebSocket JSON-RPC 2.0 API for RitaWapp desktop framework."
+  },
+  "methods": {
+    "rwa.hello": {
+      "name": "rwa.hello",
+      "description": "Authenticate and establish session handshake.",
+      "scope": "public"
+    },
+    "rwa.ping": {
+      "name": "rwa.ping",
+      "description": "Heartbeat health check.",
+      "scope": "public"
+    },
+    "rwa.methods": {
+      "name": "rwa.methods",
+      "description": "List all supported server RPC methods.",
+      "scope": "public"
+    },
+    "rwa.schema": {
+      "name": "rwa.schema",
+      "description": "Return the complete AsyncAPI / JSON Schema document.",
+      "scope": "public"
+    },
+    "rwa.subscribe": {
+      "name": "rwa.subscribe",
+      "description": "Subscribe to server push events.",
+      "scope": "project:read"
+    },
+    "rwa.unsubscribe": {
+      "name": "rwa.unsubscribe",
+      "description": "Unsubscribe from push event topics.",
+      "scope": "project:read"
+    },
+    "rwa.cancel": {
+      "name": "rwa.cancel",
+      "description": "Cancel an active running request or job.",
+      "scope": "job:run"
+    },
+    "rwa.version": {
+      "name": "rwa.version",
+      "description": "Get RitaWapp framework version.",
+      "scope": "public"
+    },
+    "rwa.shutdown": {
+      "name": "rwa.shutdown",
+      "description": "Gracefully shut down wsApi server.",
+      "scope": "admin"
+    },
+    "project.init": {
+      "name": "project.init",
+      "description": "Scaffold a new project template.",
+      "scope": "project:write"
+    },
+    "project.open": {
+      "name": "project.open",
+      "description": "Open an existing RitaWapp project.",
+      "scope": "project:read"
+    },
+    "project.info": {
+      "name": "project.info",
+      "description": "Get project configuration and stats.",
+      "scope": "project:read"
+    },
+    "project.list": {
+      "name": "project.list",
+      "description": "List projects in directory.",
+      "scope": "project:read"
+    },
+    "project.validate": {
+      "name": "project.validate",
+      "description": "Validate project configuration.",
+      "scope": "project:read"
+    },
+    "project.config.get": {
+      "name": "project.config.get",
+      "description": "Read current config.",
+      "scope": "project:read"
+    },
+    "project.config.set": {
+      "name": "project.config.set",
+      "description": "Write updated config with validation.",
+      "scope": "project:write"
+    },
+    "project.config.schema": {
+      "name": "project.config.schema",
+      "description": "Get schema for RitaWapp.config.ts.",
+      "scope": "project:read"
+    },
+    "module.list": {
+      "name": "module.list",
+      "description": "List all 18 modules with enabled status.",
+      "scope": "project:read"
+    },
+    "module.enable": {
+      "name": "module.enable",
+      "description": "Enable a module in the project config.",
+      "scope": "project:write"
+    },
+    "module.disable": {
+      "name": "module.disable",
+      "description": "Disable a module in the project config.",
+      "scope": "project:write"
+    },
+    "module.describe": {
+      "name": "module.describe",
+      "description": "Get details and actions of a module.",
+      "scope": "project:read"
+    },
+    "module.create": {
+      "name": "module.create",
+      "description": "Scaffold a custom module.",
+      "scope": "project:write"
+    },
+    "job.build": {
+      "name": "job.build",
+      "description": "Trigger production compile and packaging.",
+      "scope": "job:run"
+    },
+    "job.dev.start": {
+      "name": "job.dev.start",
+      "description": "Start dev server and runtime with DevTools.",
+      "scope": "job:run"
+    },
+    "job.dev.stop": {
+      "name": "job.dev.stop",
+      "description": "Stop dev server.",
+      "scope": "job:run"
+    },
+    "job.test": {
+      "name": "job.test",
+      "description": "Run test suite.",
+      "scope": "job:run"
+    },
+    "job.check": {
+      "name": "job.check",
+      "description": "Run typecheck.",
+      "scope": "job:run"
+    },
+    "job.lint": {
+      "name": "job.lint",
+      "description": "Run linter.",
+      "scope": "job:run"
+    },
+    "job.fmt": {
+      "name": "job.fmt",
+      "description": "Run formatter.",
+      "scope": "job:run"
+    },
+    "job.doctor": {
+      "name": "job.doctor",
+      "description": "Run doctor diagnostics.",
+      "scope": "job:run"
+    },
+    "job.bench": {
+      "name": "job.bench",
+      "description": "Run benchmark suite.",
+      "scope": "job:run"
+    },
+    "job.packed": {
+      "name": "job.packed",
+      "description": "Package distributable module.",
+      "scope": "job:run"
+    },
+    "job.release": {
+      "name": "job.release",
+      "description": "Create release archive.",
+      "scope": "job:run"
+    },
+    "job.installDev": {
+      "name": "job.installDev",
+      "description": "Preview installer card.",
+      "scope": "job:run"
+    },
+    "job.list": {
+      "name": "job.list",
+      "description": "List active and historical jobs.",
+      "scope": "job:run"
+    },
+    "job.get": {
+      "name": "job.get",
+      "description": "Get status of a specific job.",
+      "scope": "job:run"
+    },
+    "job.cancel": {
+      "name": "job.cancel",
+      "description": "Cancel a running job.",
+      "scope": "job:run"
+    },
+    "app.start": {
+      "name": "app.start",
+      "description": "Launch built application executable.",
+      "scope": "app:control"
+    },
+    "app.stop": {
+      "name": "app.stop",
+      "description": "Terminate running application.",
+      "scope": "app:control"
+    },
+    "app.restart": {
+      "name": "app.restart",
+      "description": "Restart application.",
+      "scope": "app:control"
+    },
+    "app.status": {
+      "name": "app.status",
+      "description": "Check if app is running.",
+      "scope": "app:control"
+    },
+    "app.attach": {
+      "name": "app.attach",
+      "description": "Attach to application RPC bridge.",
+      "scope": "app:control"
+    },
+    "app.detach": {
+      "name": "app.detach",
+      "description": "Detach from application.",
+      "scope": "app:control"
+    },
+    "app.logs": {
+      "name": "app.logs",
+      "description": "Stream app runtime logs.",
+      "scope": "app:control"
+    },
+    "db.exec": {
+      "name": "db.exec",
+      "description": "Execute SQL statements.",
+      "scope": "mod:database"
+    },
+    "db.run": {
+      "name": "db.run",
+      "description": "Run parameterized SQL statement.",
+      "scope": "mod:database"
+    },
+    "db.query": {
+      "name": "db.query",
+      "description": "Run parameterized SQL query.",
+      "scope": "mod:database"
+    },
+    "db.get": {
+      "name": "db.get",
+      "description": "Get single row result.",
+      "scope": "mod:database"
+    },
+    "db.transaction": {
+      "name": "db.transaction",
+      "description": "Execute transaction statements.",
+      "scope": "mod:database"
+    },
+    "db.stream.open": {
+      "name": "db.stream.open",
+      "description": "Open streaming cursor.",
+      "scope": "mod:database"
+    },
+    "db.stream.next": {
+      "name": "db.stream.next",
+      "description": "Fetch next chunk.",
+      "scope": "mod:database"
+    },
+    "db.stream.close": {
+      "name": "db.stream.close",
+      "description": "Close stream.",
+      "scope": "mod:database"
+    },
+    "db.ai.search": {
+      "name": "db.ai.search",
+      "description": "Execute BM25 search.",
+      "scope": "mod:database"
+    },
+    "db.ai.searchVector": {
+      "name": "db.ai.searchVector",
+      "description": "Execute cosine similarity vector search.",
+      "scope": "mod:database"
+    },
+    "db.ai.autoIndex": {
+      "name": "db.ai.autoIndex",
+      "description": "Auto-generate indexes.",
+      "scope": "mod:database"
+    },
+    "mod.fs.readFile": {
+      "name": "mod.fs.readFile",
+      "description": "Invoke action 'readFile' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.writeFile": {
+      "name": "mod.fs.writeFile",
+      "description": "Invoke action 'writeFile' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.appendFile": {
+      "name": "mod.fs.appendFile",
+      "description": "Invoke action 'appendFile' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.exists": {
+      "name": "mod.fs.exists",
+      "description": "Invoke action 'exists' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.readdir": {
+      "name": "mod.fs.readdir",
+      "description": "Invoke action 'readdir' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.mkdir": {
+      "name": "mod.fs.mkdir",
+      "description": "Invoke action 'mkdir' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.unlink": {
+      "name": "mod.fs.unlink",
+      "description": "Invoke action 'unlink' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.copyFile": {
+      "name": "mod.fs.copyFile",
+      "description": "Invoke action 'copyFile' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.stat": {
+      "name": "mod.fs.stat",
+      "description": "Invoke action 'stat' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.getAppDir": {
+      "name": "mod.fs.getAppDir",
+      "description": "Invoke action 'getAppDir' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.fs.getAssetsDir": {
+      "name": "mod.fs.getAssetsDir",
+      "description": "Invoke action 'getAssetsDir' of module 'fs'.",
+      "scope": "mod:fs"
+    },
+    "mod.os.platform": {
+      "name": "mod.os.platform",
+      "description": "Invoke action 'platform' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.arch": {
+      "name": "mod.os.arch",
+      "description": "Invoke action 'arch' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.release": {
+      "name": "mod.os.release",
+      "description": "Invoke action 'release' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.hostname": {
+      "name": "mod.os.hostname",
+      "description": "Invoke action 'hostname' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.homedir": {
+      "name": "mod.os.homedir",
+      "description": "Invoke action 'homedir' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.tmpdir": {
+      "name": "mod.os.tmpdir",
+      "description": "Invoke action 'tmpdir' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.totalmem": {
+      "name": "mod.os.totalmem",
+      "description": "Invoke action 'totalmem' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.freemem": {
+      "name": "mod.os.freemem",
+      "description": "Invoke action 'freemem' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.uptime": {
+      "name": "mod.os.uptime",
+      "description": "Invoke action 'uptime' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.getMetrics": {
+      "name": "mod.os.getMetrics",
+      "description": "Invoke action 'getMetrics' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.fingerprint": {
+      "name": "mod.os.fingerprint",
+      "description": "Invoke action 'fingerprint' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.os.getInfo": {
+      "name": "mod.os.getInfo",
+      "description": "Invoke action 'getInfo' of module 'os'.",
+      "scope": "mod:os"
+    },
+    "mod.path.join": {
+      "name": "mod.path.join",
+      "description": "Invoke action 'join' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.resolve": {
+      "name": "mod.path.resolve",
+      "description": "Invoke action 'resolve' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.normalize": {
+      "name": "mod.path.normalize",
+      "description": "Invoke action 'normalize' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.basename": {
+      "name": "mod.path.basename",
+      "description": "Invoke action 'basename' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.dirname": {
+      "name": "mod.path.dirname",
+      "description": "Invoke action 'dirname' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.extname": {
+      "name": "mod.path.extname",
+      "description": "Invoke action 'extname' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.isAbsolute": {
+      "name": "mod.path.isAbsolute",
+      "description": "Invoke action 'isAbsolute' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.parse": {
+      "name": "mod.path.parse",
+      "description": "Invoke action 'parse' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.path.relative": {
+      "name": "mod.path.relative",
+      "description": "Invoke action 'relative' of module 'path'.",
+      "scope": "mod:path"
+    },
+    "mod.process.cwd": {
+      "name": "mod.process.cwd",
+      "description": "Invoke action 'cwd' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.process.getEnv": {
+      "name": "mod.process.getEnv",
+      "description": "Invoke action 'getEnv' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.process.memoryUsage": {
+      "name": "mod.process.memoryUsage",
+      "description": "Invoke action 'memoryUsage' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.process.uptime": {
+      "name": "mod.process.uptime",
+      "description": "Invoke action 'uptime' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.process.pid": {
+      "name": "mod.process.pid",
+      "description": "Invoke action 'pid' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.process.exit": {
+      "name": "mod.process.exit",
+      "description": "Invoke action 'exit' of module 'process'.",
+      "scope": "mod:process"
+    },
+    "mod.shell.exec": {
+      "name": "mod.shell.exec",
+      "description": "Invoke action 'exec' of module 'shell'.",
+      "scope": "mod:shell"
+    },
+    "mod.shell.openExternal": {
+      "name": "mod.shell.openExternal",
+      "description": "Invoke action 'openExternal' of module 'shell'.",
+      "scope": "mod:shell"
+    },
+    "mod.shell.showItemInFolder": {
+      "name": "mod.shell.showItemInFolder",
+      "description": "Invoke action 'showItemInFolder' of module 'shell'.",
+      "scope": "mod:shell"
+    },
+    "mod.appWindow.isFrameless": {
+      "name": "mod.appWindow.isFrameless",
+      "description": "Invoke action 'isFrameless' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.minimize": {
+      "name": "mod.appWindow.minimize",
+      "description": "Invoke action 'minimize' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.maximize": {
+      "name": "mod.appWindow.maximize",
+      "description": "Invoke action 'maximize' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.restore": {
+      "name": "mod.appWindow.restore",
+      "description": "Invoke action 'restore' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.close": {
+      "name": "mod.appWindow.close",
+      "description": "Invoke action 'close' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.isMaximized": {
+      "name": "mod.appWindow.isMaximized",
+      "description": "Invoke action 'isMaximized' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.drag": {
+      "name": "mod.appWindow.drag",
+      "description": "Invoke action 'drag' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.setSize": {
+      "name": "mod.appWindow.setSize",
+      "description": "Invoke action 'setSize' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.getSize": {
+      "name": "mod.appWindow.getSize",
+      "description": "Invoke action 'getSize' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.setPosition": {
+      "name": "mod.appWindow.setPosition",
+      "description": "Invoke action 'setPosition' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.getPosition": {
+      "name": "mod.appWindow.getPosition",
+      "description": "Invoke action 'getPosition' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.center": {
+      "name": "mod.appWindow.center",
+      "description": "Invoke action 'center' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.setAlwaysOnTop": {
+      "name": "mod.appWindow.setAlwaysOnTop",
+      "description": "Invoke action 'setAlwaysOnTop' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.showMessageBox": {
+      "name": "mod.appWindow.showMessageBox",
+      "description": "Invoke action 'showMessageBox' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.reload": {
+      "name": "mod.appWindow.reload",
+      "description": "Invoke action 'reload' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.appWindow.navigate": {
+      "name": "mod.appWindow.navigate",
+      "description": "Invoke action 'navigate' of module 'appWindow'.",
+      "scope": "mod:appWindow"
+    },
+    "mod.network.isOnline": {
+      "name": "mod.network.isOnline",
+      "description": "Invoke action 'isOnline' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.network.ping": {
+      "name": "mod.network.ping",
+      "description": "Invoke action 'ping' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.network.getInterfaces": {
+      "name": "mod.network.getInterfaces",
+      "description": "Invoke action 'getInterfaces' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.network.scanWifi": {
+      "name": "mod.network.scanWifi",
+      "description": "Invoke action 'scanWifi' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.network.connectWifi": {
+      "name": "mod.network.connectWifi",
+      "description": "Invoke action 'connectWifi' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.network.disconnectWifi": {
+      "name": "mod.network.disconnectWifi",
+      "description": "Invoke action 'disconnectWifi' of module 'network'.",
+      "scope": "mod:network"
+    },
+    "mod.database.exec": {
+      "name": "mod.database.exec",
+      "description": "Invoke action 'exec' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.run": {
+      "name": "mod.database.run",
+      "description": "Invoke action 'run' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.query": {
+      "name": "mod.database.query",
+      "description": "Invoke action 'query' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.get": {
+      "name": "mod.database.get",
+      "description": "Invoke action 'get' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.transaction": {
+      "name": "mod.database.transaction",
+      "description": "Invoke action 'transaction' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.stream": {
+      "name": "mod.database.stream",
+      "description": "Invoke action 'stream' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.model": {
+      "name": "mod.database.model",
+      "description": "Invoke action 'model' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.autoIndex": {
+      "name": "mod.database.autoIndex",
+      "description": "Invoke action 'autoIndex' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.search": {
+      "name": "mod.database.search",
+      "description": "Invoke action 'search' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.storeVector": {
+      "name": "mod.database.storeVector",
+      "description": "Invoke action 'storeVector' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.searchVector": {
+      "name": "mod.database.searchVector",
+      "description": "Invoke action 'searchVector' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.database.optimize": {
+      "name": "mod.database.optimize",
+      "description": "Invoke action 'optimize' of module 'database'.",
+      "scope": "mod:database"
+    },
+    "mod.update.getCurrentVersion": {
+      "name": "mod.update.getCurrentVersion",
+      "description": "Invoke action 'getCurrentVersion' of module 'update'.",
+      "scope": "mod:update"
+    },
+    "mod.update.getRepoUrl": {
+      "name": "mod.update.getRepoUrl",
+      "description": "Invoke action 'getRepoUrl' of module 'update'.",
+      "scope": "mod:update"
+    },
+    "mod.update.checkForUpdates": {
+      "name": "mod.update.checkForUpdates",
+      "description": "Invoke action 'checkForUpdates' of module 'update'.",
+      "scope": "mod:update"
+    },
+    "mod.update.downloadAndInstall": {
+      "name": "mod.update.downloadAndInstall",
+      "description": "Invoke action 'downloadAndInstall' of module 'update'.",
+      "scope": "mod:update"
+    },
+    "mod.update.rollback": {
+      "name": "mod.update.rollback",
+      "description": "Invoke action 'rollback' of module 'update'.",
+      "scope": "mod:update"
+    },
+    "mod.cloudSync.connect": {
+      "name": "mod.cloudSync.connect",
+      "description": "Invoke action 'connect' of module 'cloudSync'.",
+      "scope": "mod:cloudSync"
+    },
+    "mod.cloudSync.getStatus": {
+      "name": "mod.cloudSync.getStatus",
+      "description": "Invoke action 'getStatus' of module 'cloudSync'.",
+      "scope": "mod:cloudSync"
+    },
+    "mod.cloudSync.sync": {
+      "name": "mod.cloudSync.sync",
+      "description": "Invoke action 'sync' of module 'cloudSync'.",
+      "scope": "mod:cloudSync"
+    },
+    "mod.tray.set": {
+      "name": "mod.tray.set",
+      "description": "Invoke action 'set' of module 'tray'.",
+      "scope": "mod:tray"
+    },
+    "mod.tray.items": {
+      "name": "mod.tray.items",
+      "description": "Invoke action 'items' of module 'tray'.",
+      "scope": "mod:tray"
+    },
+    "mod.tray.appShow": {
+      "name": "mod.tray.appShow",
+      "description": "Invoke action 'appShow' of module 'tray'.",
+      "scope": "mod:tray"
+    },
+    "mod.tray.appHide": {
+      "name": "mod.tray.appHide",
+      "description": "Invoke action 'appHide' of module 'tray'.",
+      "scope": "mod:tray"
+    },
+    "mod.tray.setTooltip": {
+      "name": "mod.tray.setTooltip",
+      "description": "Invoke action 'setTooltip' of module 'tray'.",
+      "scope": "mod:tray"
+    },
+    "mod.net.createServer": {
+      "name": "mod.net.createServer",
+      "description": "Invoke action 'createServer' of module 'net'.",
+      "scope": "mod:net"
+    },
+    "mod.net.connect": {
+      "name": "mod.net.connect",
+      "description": "Invoke action 'connect' of module 'net'.",
+      "scope": "mod:net"
+    },
+    "mod.net.isIP": {
+      "name": "mod.net.isIP",
+      "description": "Invoke action 'isIP' of module 'net'.",
+      "scope": "mod:net"
+    },
+    "mod.net.isIPv4": {
+      "name": "mod.net.isIPv4",
+      "description": "Invoke action 'isIPv4' of module 'net'.",
+      "scope": "mod:net"
+    },
+    "mod.net.isIPv6": {
+      "name": "mod.net.isIPv6",
+      "description": "Invoke action 'isIPv6' of module 'net'.",
+      "scope": "mod:net"
+    },
+    "mod.dgram.createSocket": {
+      "name": "mod.dgram.createSocket",
+      "description": "Invoke action 'createSocket' of module 'dgram'.",
+      "scope": "mod:dgram"
+    },
+    "mod.dgram.bind": {
+      "name": "mod.dgram.bind",
+      "description": "Invoke action 'bind' of module 'dgram'.",
+      "scope": "mod:dgram"
+    },
+    "mod.dgram.send": {
+      "name": "mod.dgram.send",
+      "description": "Invoke action 'send' of module 'dgram'.",
+      "scope": "mod:dgram"
+    },
+    "mod.http.createServer": {
+      "name": "mod.http.createServer",
+      "description": "Invoke action 'createServer' of module 'http'.",
+      "scope": "mod:http"
+    },
+    "mod.http.request": {
+      "name": "mod.http.request",
+      "description": "Invoke action 'request' of module 'http'.",
+      "scope": "mod:http"
+    },
+    "mod.http.get": {
+      "name": "mod.http.get",
+      "description": "Invoke action 'get' of module 'http'.",
+      "scope": "mod:http"
+    },
+    "mod.fetch.fetch": {
+      "name": "mod.fetch.fetch",
+      "description": "Invoke action 'fetch' of module 'fetch'.",
+      "scope": "mod:fetch"
+    },
+    "mod.express.use": {
+      "name": "mod.express.use",
+      "description": "Invoke action 'use' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.get": {
+      "name": "mod.express.get",
+      "description": "Invoke action 'get' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.post": {
+      "name": "mod.express.post",
+      "description": "Invoke action 'post' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.put": {
+      "name": "mod.express.put",
+      "description": "Invoke action 'put' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.patch": {
+      "name": "mod.express.patch",
+      "description": "Invoke action 'patch' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.delete": {
+      "name": "mod.express.delete",
+      "description": "Invoke action 'delete' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.all": {
+      "name": "mod.express.all",
+      "description": "Invoke action 'all' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.express.listen": {
+      "name": "mod.express.listen",
+      "description": "Invoke action 'listen' of module 'express'.",
+      "scope": "mod:express"
+    },
+    "mod.admZip.addFile": {
+      "name": "mod.admZip.addFile",
+      "description": "Invoke action 'addFile' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.addLocalFile": {
+      "name": "mod.admZip.addLocalFile",
+      "description": "Invoke action 'addLocalFile' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.getEntries": {
+      "name": "mod.admZip.getEntries",
+      "description": "Invoke action 'getEntries' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.readAsText": {
+      "name": "mod.admZip.readAsText",
+      "description": "Invoke action 'readAsText' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.readFile": {
+      "name": "mod.admZip.readFile",
+      "description": "Invoke action 'readFile' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.extractAllTo": {
+      "name": "mod.admZip.extractAllTo",
+      "description": "Invoke action 'extractAllTo' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.extractEntryTo": {
+      "name": "mod.admZip.extractEntryTo",
+      "description": "Invoke action 'extractEntryTo' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.admZip.writeZip": {
+      "name": "mod.admZip.writeZip",
+      "description": "Invoke action 'writeZip' of module 'admZip'.",
+      "scope": "mod:admZip"
+    },
+    "mod.ws.createServer": {
+      "name": "mod.ws.createServer",
+      "description": "Invoke action 'createServer' of module 'ws'.",
+      "scope": "mod:ws"
+    },
+    "mod.ws.connect": {
+      "name": "mod.ws.connect",
+      "description": "Invoke action 'connect' of module 'ws'.",
+      "scope": "mod:ws"
+    },
+    "mod.ws.send": {
+      "name": "mod.ws.send",
+      "description": "Invoke action 'send' of module 'ws'.",
+      "scope": "mod:ws"
+    },
+    "mod.ws.broadcast": {
+      "name": "mod.ws.broadcast",
+      "description": "Invoke action 'broadcast' of module 'ws'.",
+      "scope": "mod:ws"
+    },
+    "mod.ws.close": {
+      "name": "mod.ws.close",
+      "description": "Invoke action 'close' of module 'ws'.",
+      "scope": "mod:ws"
+    }
+  }
+}

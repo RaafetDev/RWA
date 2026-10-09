@@ -1,0 +1,17 @@
+{
+  "name": "update",
+  "version": "1.0.1",
+  "description": "GitHub Releases update checking with SHA-256 verification and rollback.",
+  "requiresMongoose": true,
+  "requiresSqlite": false,
+  "dependencies": [
+    "http"
+  ],
+  "actions": [
+    "getCurrentVersion",
+    "getRepoUrl",
+    "checkForUpdates",
+    "downloadAndInstall",
+    "rollback"
+  ]
+}

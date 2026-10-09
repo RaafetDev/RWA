@@ -1,0 +1,15 @@
+{
+  "name": "ws",
+  "version": "1.0.1",
+  "description": "Cesanta Mongoose-backed WebSocket server and client.",
+  "requiresMongoose": true,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "createServer",
+    "connect",
+    "send",
+    "broadcast",
+    "close"
+  ]
+}

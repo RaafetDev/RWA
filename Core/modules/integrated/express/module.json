@@ -1,0 +1,20 @@
+{
+  "name": "express",
+  "version": "1.0.1",
+  "description": "Express-style routing, middleware, body parsing, and response handlers.",
+  "requiresMongoose": true,
+  "requiresSqlite": false,
+  "dependencies": [
+    "http"
+  ],
+  "actions": [
+    "use",
+    "get",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "all",
+    "listen"
+  ]
+}

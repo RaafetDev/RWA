@@ -1,0 +1,16 @@
+{
+  "name": "cloudSync",
+  "version": "1.0.1",
+  "description": "Device-to-device database sync over HTTPS with change tracking and tombstoning.",
+  "requiresMongoose": true,
+  "requiresSqlite": true,
+  "dependencies": [
+    "http",
+    "database"
+  ],
+  "actions": [
+    "connect",
+    "getStatus",
+    "sync"
+  ]
+}

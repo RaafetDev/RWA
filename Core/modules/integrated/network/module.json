@@ -1,0 +1,16 @@
+{
+  "name": "network",
+  "version": "1.0.1",
+  "description": "Network interface discovery, Wi-Fi management, and latency ping.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "isOnline",
+    "ping",
+    "getInterfaces",
+    "scanWifi",
+    "connectWifi",
+    "disconnectWifi"
+  ]
+}

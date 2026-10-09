@@ -1,0 +1,14 @@
+# Git Ignore for RitaWapp Framework
+.dev/
+dist/
+bin/
+*.exe
+*.o
+*.a
+*.obj
+myTest/
+Test*/
+*.rar
+*.zip
+*.7z
+

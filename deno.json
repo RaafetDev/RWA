@@ -1,0 +1,62 @@
+{
+  "name": "@ritawapp/core",
+  "version": "1.0.1",
+  "exports": "./mod.ts",
+  "tasks": {
+    "init": "deno run -A RitaWapp.ts init",
+    "dev": "deno run -A RitaWapp.ts dev",
+    "dev:browser": "deno run -A RitaWapp.ts dev --browser",
+    "run": "deno run -A RitaWapp.ts run",
+    "start": "deno run -A RitaWapp.ts run",
+    "installDev": "deno run -A RitaWapp.ts installDev",
+    "build": "deno run -A RitaWapp.ts build",
+    "selftest": "deno run -A RitaWapp.ts selftest",
+    "test": "deno test -A Core/tests/",
+    "check": "deno check mod.ts RitaWapp.ts",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "doctor": "deno run -A RitaWapp.ts doctor",
+    "bench": "deno run -A RitaWapp.ts bench",
+    "packed": "deno run -A RitaWapp.ts packed",
+    "release": "deno run -A RitaWapp.ts release",
+    "createModule": "deno run -A RitaWapp.ts createModule",
+    "setup": "deno run -A RitaWapp.ts setup",
+    "wsApi": "deno run -A RitaWapp.ts wsApi"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "lib": ["deno.window", "dom", "dom.iterable", "esnext"]
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": [
+        "no-explicit-any",
+        "no-window",
+        "no-window-prefix",
+        "require-await",
+        "no-unused-vars",
+        "no-empty"
+      ]
+    },
+    "exclude": [
+      "dist/",
+      "Core/runtime/webui/",
+      "Core/runtime/sqlite/",
+      "Core/runtime/mongoose/",
+      "Core/templates/",
+      "Core/toolchain/vendor/"
+    ]
+  },
+  "fmt": {
+    "exclude": [
+      "dist/",
+      "Core/runtime/webui/",
+      "Core/runtime/sqlite/",
+      "Core/runtime/mongoose/",
+      "Core/templates/",
+      "Core/toolchain/vendor/"
+    ]
+  }
+}

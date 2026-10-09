@@ -1,0 +1,13 @@
+{
+  "name": "shell",
+  "version": "1.0.1",
+  "description": "Privileged command execution, external URL opener, and explorer display.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "exec",
+    "openExternal",
+    "showItemInFolder"
+  ]
+}

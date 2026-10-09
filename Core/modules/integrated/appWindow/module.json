@@ -1,0 +1,26 @@
+{
+  "name": "appWindow",
+  "version": "1.0.1",
+  "description": "Window sizing, position, frameless/transparency styling, and DWM controls.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "isFrameless",
+    "minimize",
+    "maximize",
+    "restore",
+    "close",
+    "isMaximized",
+    "drag",
+    "setSize",
+    "getSize",
+    "setPosition",
+    "getPosition",
+    "center",
+    "setAlwaysOnTop",
+    "showMessageBox",
+    "reload",
+    "navigate"
+  ]
+}

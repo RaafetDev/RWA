@@ -1,0 +1,16 @@
+{
+  "name": "process",
+  "version": "1.0.1",
+  "description": "Runtime process details, environment access, and process lifetime controls.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "cwd",
+    "getEnv",
+    "memoryUsage",
+    "uptime",
+    "pid",
+    "exit"
+  ]
+}

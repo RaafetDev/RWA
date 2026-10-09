@@ -1,0 +1,13 @@
+{
+  "name": "dgram",
+  "version": "1.0.1",
+  "description": "Winsock2 UDP socket implementation for datagram communications.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "createSocket",
+    "bind",
+    "send"
+  ]
+}

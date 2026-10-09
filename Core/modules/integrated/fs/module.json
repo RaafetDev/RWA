@@ -1,0 +1,21 @@
+{
+  "name": "fs",
+  "version": "1.0.1",
+  "description": "File system operations with path traversal sanitization and confinement.",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "readFile",
+    "writeFile",
+    "appendFile",
+    "exists",
+    "readdir",
+    "mkdir",
+    "unlink",
+    "copyFile",
+    "stat",
+    "getAppDir",
+    "getAssetsDir"
+  ]
+}

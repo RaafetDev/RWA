@@ -1,0 +1,25 @@
+{
+  "name": "mongoose-sqlite",
+  "version": "1.0.1",
+  "description": "Node.js Mongoose ODM port for SQLite (Schema, Model, validation, query builder, timestamps, and indexes).",
+  "requiresMongoose": false,
+  "requiresSqlite": true,
+  "dependencies": ["database"],
+  "actions": [
+    "find",
+    "findOne",
+    "findById",
+    "create",
+    "insertMany",
+    "updateOne",
+    "updateMany",
+    "deleteOne",
+    "deleteMany",
+    "countDocuments",
+    "distinct",
+    "paginate",
+    "stream",
+    "autoIndex",
+    "drop"
+  ]
+}

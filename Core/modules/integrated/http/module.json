@@ -1,0 +1,13 @@
+{
+  "name": "http",
+  "version": "1.0.1",
+  "description": "Mongoose-backed HTTP/HTTPS server and client with verified TLS.",
+  "requiresMongoose": true,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "createServer",
+    "request",
+    "get"
+  ]
+}

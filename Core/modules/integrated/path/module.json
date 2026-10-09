@@ -1,0 +1,19 @@
+{
+  "name": "path",
+  "version": "1.0.1",
+  "description": "Pure TypeScript path manipulation (win32 and posix compliant).",
+  "requiresMongoose": false,
+  "requiresSqlite": false,
+  "dependencies": [],
+  "actions": [
+    "join",
+    "resolve",
+    "normalize",
+    "basename",
+    "dirname",
+    "extname",
+    "isAbsolute",
+    "parse",
+    "relative"
+  ]
+}
