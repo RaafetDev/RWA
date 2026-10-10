@@ -69,7 +69,10 @@ export interface Plugin {
   install(app: App, ...options: any[]): any;
 }
 
-let _warnedFallback = false;
+let _cachedNativeBridge: ((payload: string) => Promise<string>) | null = null;
+let _bridgeUnavailable = false;
+let _lastProbeTime = 0;
+let _startupProbePromise: Promise<((payload: string) => Promise<string>) | null> | null = null;
 
 function getNativeBridge(): ((payload: string) => Promise<string>) | null {
   const g = typeof window !== "undefined" ? (window as any) : (globalThis as any);
@@ -96,54 +99,68 @@ function getNativeBridge(): ((payload: string) => Promise<string>) | null {
 /**
  * Low-level module invoker that communicates with the C runtime
  */
-async function ensureRpcReady(
-  timeoutMs = 8000,
-): Promise<((payload: string) => Promise<string>) | null> {
-  const g = typeof window !== "undefined" ? (window as any) : (globalThis as any);
+async function ensureRpcReady(): Promise<((payload: string) => Promise<string>) | null> {
+  if (_cachedNativeBridge) return _cachedNativeBridge;
 
   let fn = getNativeBridge();
   if (fn) {
+    _cachedNativeBridge = fn;
+    _bridgeUnavailable = false;
     if (typeof window !== "undefined") {
       (window as any).__RWA_RPC_MODE__ = "native";
     }
     return fn;
   }
 
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 25));
-    fn = getNativeBridge();
-    if (fn) {
-      if (typeof window !== "undefined") {
-        (window as any).__RWA_RPC_MODE__ = "native";
+  // If already marked unavailable, probe at most once every 2 seconds without waiting
+  if (_bridgeUnavailable) {
+    const now = Date.now();
+    if (now - _lastProbeTime >= 2000) {
+      _lastProbeTime = now;
+      fn = getNativeBridge();
+      if (fn) {
+        _cachedNativeBridge = fn;
+        _bridgeUnavailable = false;
+        if (typeof window !== "undefined") {
+          (window as any).__RWA_RPC_MODE__ = "native";
+        }
+        return fn;
       }
-      return fn;
     }
+    if (typeof window !== "undefined") {
+      (window as any).__RWA_RPC_MODE__ = "unavailable";
+    }
+    return null;
   }
 
-  // Fallback to dev server HTTP RPC (never cache fallback)
-  if (typeof window !== "undefined") {
-    (window as any).__RWA_RPC_MODE__ = "MOCK";
-  }
-  if (!_warnedFallback) {
-    _warnedFallback = true;
-    console.warn(
-      "[RitaWapp Mock] Native C module bridge not detected after timeout. Falling back to HTTP dev mock.",
-    );
+  // Initial startup probe (max 3000 ms, poll every 25 ms)
+  if (!_startupProbePromise) {
+    _startupProbePromise = (async () => {
+      const start = Date.now();
+      while (Date.now() - start < 3000) {
+        fn = getNativeBridge();
+        if (fn) {
+          _cachedNativeBridge = fn;
+          _bridgeUnavailable = false;
+          if (typeof window !== "undefined") {
+            (window as any).__RWA_RPC_MODE__ = "native";
+          }
+          return fn;
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+
+      _bridgeUnavailable = true;
+      _lastProbeTime = Date.now();
+      if (typeof window !== "undefined") {
+        (window as any).__RWA_RPC_MODE__ = "unavailable";
+      }
+      return null;
+    })();
   }
 
-  if (typeof location !== "undefined" && location.origin) {
-    return async (payload: string) => {
-      const res = await fetch("/_rwa_rpc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      });
-      return await res.text();
-    };
-  }
-
-  return null;
+  const res = await _startupProbePromise;
+  return res;
 }
 
 export async function rpc(
@@ -185,19 +202,9 @@ export async function rpc(
       console.error(`[RitaWapp Native RPC] ${module}.${action} failed:`, err);
       throw err;
     }
-  } else {
-    // Browser preview fallback mode
-    if (typeof window !== "undefined") {
-      (window as any).__RWA_RPC_MODE__ = "MOCK";
-    }
-    if (!_warnedFallback) {
-      _warnedFallback = true;
-      console.warn(
-        `[RitaWapp Mock] Native C module not connected. Simulated call: ${module}.${action}`,
-      );
-    }
-    return getMockFallback(module, action, args);
   }
+
+  throw new Error("Native bridge not connected");
 }
 
 function getMockFallback(module: string, action: string, args: unknown[]): any {
@@ -1148,7 +1155,13 @@ export class Model<T = any> {
       payload._id = generateObjectId();
     }
     const res = await rpc("db", "create", this.collectionName, payload);
+    if (res && typeof res === "object" && res.success === false) {
+      throw new Error(res.error || `[RitaWapp DB] create in ${this.collectionName} failed`);
+    }
     const raw = res?.data !== undefined ? res.data : (res || payload);
+    if (typeof raw !== "object" || raw === null) {
+      throw new Error(`[RitaWapp DB] create returned invalid data: ${JSON.stringify(raw)}`);
+    }
     return createAutoSavingDocument<T>(raw, this.collectionName, this.schema);
   }
 

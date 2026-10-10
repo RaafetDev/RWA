@@ -141,47 +141,6 @@ export async function createDevServer(projectDir: string): Promise<{
       return new Response("WebSocket required", { status: 400 });
     }
 
-    // Proxy WebUI JavaScript bridge with instant DOM-ready execution
-    if (url.pathname === "/webui.js") {
-      const webuiPort = await getWebuiPort();
-      let lastErr: unknown = null;
-      for (let attempt = 0; attempt < 35; attempt++) {
-        try {
-          const res = await fetch(`http://127.0.0.1:${webuiPort}/webui.js`);
-          if (res.ok) {
-            let jsText = await res.text();
-            // Patch WebUI DOMContentLoaded listener so globalThis.webui is instantiated
-            // even if the script finishes loading after DOMContentLoaded has already fired.
-            jsText = jsText.replace(
-              /document\.addEventListener\("DOMContentLoaded",\s*function\(\)\{\s*(globalThis\.webui\s*=\s*new\s*WebuiBridge\([^)]+\);?)\s*\}\);?/,
-              `function __rwa_init__() { if (!globalThis.webui && typeof WebuiBridge !== "undefined") { $1 } }
-if (document.readyState === "complete" || document.readyState === "interactive") { __rwa_init__(); }
-else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
-            );
-            const elapsed = (performance.now() - startTime).toFixed(1);
-            logger.info(
-              `[DevServer] GET /webui.js -> 200 application/javascript (${elapsed}ms)`,
-            );
-            return new Response(jsText, {
-              status: 200,
-              headers: {
-                "Content-Type": "application/javascript; charset=utf-8",
-              },
-            });
-          }
-        } catch (err) {
-          lastErr = err;
-        }
-        await new Promise((r) => setTimeout(r, 60));
-      }
-      logger.error(
-        `[DevServer] Failed to proxy /webui.js from port ${webuiPort}: ${lastErr}`,
-      );
-      return new Response(`// WebUI not ready yet: ${lastErr}`, {
-        status: 503,
-        headers: { "Content-Type": "application/javascript; charset=utf-8" },
-      });
-    }
 
     // Dev Server Native RPC Fallback endpoint (executes real operations when browser/client calls /_rwa_rpc)
     if (url.pathname === "/_rwa_rpc" && req.method === "POST") {
@@ -460,57 +419,6 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
       }
     }
 
-    // Proxy WebSocket bridge if requested through dev server
-    if (
-      url.pathname === "/_webui_ws_connect" ||
-      url.pathname.includes("_webui_ws")
-    ) {
-      if (req.headers.get("upgrade") === "websocket") {
-        const webuiPort = await getWebuiPort();
-        const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
-        try {
-          const backendWs = new WebSocket(
-            `ws://127.0.0.1:${webuiPort}/_webui_ws_connect`,
-          );
-          backendWs.onopen = () => {
-            clientSocket.onmessage = (e) => {
-              if (backendWs.readyState === WebSocket.OPEN) {
-                backendWs.send(e.data);
-              }
-            };
-            backendWs.onmessage = (e) => {
-              if (clientSocket.readyState === WebSocket.OPEN) {
-                clientSocket.send(e.data);
-              }
-            };
-          };
-          clientSocket.onclose = () => {
-            try {
-              backendWs.close();
-            } catch {}
-          };
-          backendWs.onclose = () => {
-            try {
-              clientSocket.close();
-            } catch {}
-          };
-          clientSocket.onerror = () => {
-            try {
-              backendWs.close();
-            } catch {}
-          };
-          backendWs.onerror = () => {
-            try {
-              clientSocket.close();
-            } catch {}
-          };
-        } catch (wsErr) {
-          logger.error(`[DevServer] WebSocket proxy error: ${wsErr}`);
-        }
-        return response;
-      }
-    }
-
     let reqPath = decodeURIComponent(url.pathname);
     if (reqPath === "/" || reqPath === "") reqPath = "/index.html";
 
@@ -529,6 +437,9 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
 
           if (ext === ".html") {
             let html = await Deno.readTextFile(filePath);
+            const webuiPort = await getWebuiPort();
+            const webuiScriptTag = `<script src="http://localhost:${webuiPort}/webui.js"></script>`;
+
             try {
               const cfg = await loadConfigFile(projectDir);
               const resolved = resolveEnabledModules(cfg.modules);
@@ -545,14 +456,16 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
                   : `${modScript}\n` + html;
               }
             } catch {}
-            if (!html.includes("/webui.js")) {
+
+            // Replace any existing src="/webui.js" or inject the webui script pointing to http://localhost:<webuiPort>/webui.js
+            if (/src=["']\/webui\.js["']/.test(html)) {
+              html = html.replace(/src=["']\/webui\.js["']/g, `src="http://localhost:${webuiPort}/webui.js"`);
+            } else if (!html.includes("/webui.js")) {
               html = html.includes("<head>")
-                ? html.replace(
-                  "<head>",
-                  `<head>\n  <script src="/webui.js"></script>`,
-                )
-                : `<script src="/webui.js"></script>\n` + html;
+                ? html.replace("<head>", `<head>\n  ${webuiScriptTag}`)
+                : `${webuiScriptTag}\n` + html;
             }
+
             if (!html.includes("/rwa-live-reload")) {
               html = html.includes("</body>")
                 ? html.replace("</body>", `${LIVE_RELOAD_SNIPPET}</body>`)
