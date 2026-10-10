@@ -272,31 +272,6 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
             result = fingerprint;
             handled = true;
           }
-        } else if (module === "appWindow" || module === "runtime/webui" || module === "webUI") {
-          if (action === "isFrameless") {
-            result = true;
-            handled = true;
-          } else if (action === "isMaximized") {
-            result = false;
-            handled = true;
-          } else if (action === "getSize") {
-            result = { width: 1100, height: 750 };
-            handled = true;
-          } else if (action === "getPosition") {
-            result = { x: 100, y: 100 };
-            handled = true;
-          } else if (action === "minimize" || action === "maximize" || action === "restore" || action === "close" || action === "drag" || action === "dragWindow") {
-            result = true;
-            handled = true;
-          }
-        } else if (module === "tray") {
-          if (action === "isHideToTray") {
-            result = false;
-            handled = true;
-          } else {
-            result = true;
-            handled = true;
-          }
         } else if (module === "process") {
           if (action === "getInfo" || action === "env") {
             result = {
@@ -426,98 +401,6 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
               }
             }
           }
-        } else if (module === "db" || module === "database" || module === "mongoose") {
-          // Dev mock database store
-          const dbFilePath = join(projectDir, ".rwa_dev_db.json");
-          let store: Record<string, any[]> = {};
-          try {
-            const raw = await Deno.readTextFile(dbFilePath);
-            store = JSON.parse(raw);
-          } catch {}
-
-          const saveStore = async () => {
-            try {
-              await Deno.writeTextFile(dbFilePath, JSON.stringify(store, null, 2));
-            } catch {}
-          };
-
-          const collName = args[0] ? String(args[0]) : "default";
-          if (!store[collName]) store[collName] = [];
-          const list = store[collName];
-
-          if (action === "create" || action === "insert" || action === "insertOne") {
-            const doc = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
-            if (!doc._id) {
-              doc._id = "doc_" + Math.random().toString(36).substring(2, 10);
-            }
-            list.push(doc);
-            await saveStore();
-            result = doc;
-            handled = true;
-          } else if (action === "find") {
-            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
-            const filterKeys = Object.keys(filter);
-            if (filterKeys.length === 0) {
-              result = [...list];
-            } else {
-              result = list.filter((item) =>
-                filterKeys.every((k) => item[k] === filter[k])
-              );
-            }
-            handled = true;
-          } else if (action === "findOne") {
-            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
-            const filterKeys = Object.keys(filter);
-            result = list.find((item) =>
-              filterKeys.every((k) => item[k] === filter[k])
-            ) || null;
-            handled = true;
-          } else if (action === "count" || action === "countDocuments") {
-            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
-            const filterKeys = Object.keys(filter);
-            if (filterKeys.length === 0) {
-              result = list.length;
-            } else {
-              result = list.filter((item) =>
-                filterKeys.every((k) => item[k] === filter[k])
-              ).length;
-            }
-            handled = true;
-          } else if (action === "connect" || action === "disconnect") {
-            result = true;
-            handled = true;
-          }
-        } else if (module === "http" || module === "https") {
-          let reqUrl = "";
-          let opts: any = {};
-          if (typeof args[0] === "object" && args[0] !== null) {
-            reqUrl = (args[0] as any).url || "";
-            opts = args[0];
-          } else {
-            reqUrl = args[0] ? String(args[0]) : "";
-            opts = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
-          }
-          try {
-            const fetchRes = await fetch(reqUrl, {
-              method: opts.method || (action === "post" ? "POST" : "GET"),
-              headers: opts.headers || {},
-              body: opts.body || undefined,
-            });
-            const textBody = await fetchRes.text();
-            result = {
-              statusCode: fetchRes.status,
-              statusText: fetchRes.statusText,
-              headers: Object.fromEntries(fetchRes.headers.entries()),
-              body: textBody,
-              data: textBody,
-            };
-            handled = true;
-          } catch (err: any) {
-            return new Response(
-              JSON.stringify({ success: false, error: err?.message || String(err) }),
-              { headers: { "Content-Type": "application/json" } },
-            );
-          }
         } else if (module === "shell") {
           if (action === "exec") {
             const cmd = args[0] ? String(args[0]) : "";
@@ -563,7 +446,10 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
         }
 
         return new Response(
-          JSON.stringify({ success: true, data: true }),
+          JSON.stringify({
+            success: false,
+            error: `MOCK: no handler for ${module}.${action}`,
+          }),
           { headers: { "Content-Type": "application/json" } },
         );
       } catch (rpcErr: any) {
@@ -779,20 +665,26 @@ export async function runDevServer(options: DevServerOptions = {}) {
   } catch {}
 
   for await (const event of watcher) {
+    const projectDirNorm = projectDir.replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();
     const relevantPaths = event.paths.filter((p) => {
       const norm = p.replaceAll("\\", "/").toLowerCase();
       const baseName = norm.split("/").pop() || "";
-      return (
-        !norm.includes("/.dev/") &&
-        !norm.includes(".rwa") &&
-        !norm.includes("dist") &&
-        !norm.includes(".git") &&
-        !norm.includes("node_modules") &&
-        !norm.endsWith(".db") &&
-        !norm.endsWith(".db-wal") &&
-        !norm.endsWith(".db-shm") &&
-        baseName !== ".rwa_dev_db.json"
-      );
+      if (baseName.startsWith(".")) return false;
+      if (
+        norm.includes("/dist/") ||
+        norm.endsWith("/dist") ||
+        norm.includes("/.rwa/") ||
+        norm.includes("/.dev/") ||
+        norm.includes("/.git/") ||
+        norm.includes("/node_modules/") ||
+        norm.endsWith(".db") ||
+        norm.endsWith(".db-wal") ||
+        norm.endsWith(".db-shm") ||
+        baseName === ".rwa_dev_db.json"
+      ) {
+        return false;
+      }
+      return true;
     });
 
     if (relevantPaths.length === 0) continue;
@@ -801,26 +693,23 @@ export async function runDevServer(options: DevServerOptions = {}) {
     for (const p of relevantPaths) {
       const norm = p.replaceAll("\\", "/").toLowerCase();
       const baseName = p.replaceAll("\\", "/").split("/").pop() || "";
-      lastChangedFile = p;
-      if (
-        norm.endsWith(".c") ||
-        norm.endsWith(".h") ||
-        baseName === "RitaWapp.json"
-      ) {
+      const isNative = norm.endsWith(".c") || norm.endsWith(".h") || baseName === "RitaWapp.json";
+      const isFrontend = (
+        norm.startsWith(`${projectDirNorm}/src/`) ||
+        norm.startsWith(`${projectDirNorm}/public/`) ||
+        baseName === "index.html"
+      );
+
+      if (isNative) {
+        lastChangedFile = p;
         pendingNative = true;
-      } else if (
-        norm.endsWith(".vue") ||
-        norm.endsWith(".ts") ||
-        norm.endsWith(".js") ||
-        norm.endsWith(".html") ||
-        norm.endsWith(".css") ||
-        norm.endsWith(".svg") ||
-        norm.endsWith(".png") ||
-        norm.endsWith(".ico")
-      ) {
+      } else if (isFrontend) {
+        lastChangedFile = p;
         pendingFrontend = true;
       }
     }
+
+    if (!pendingNative && !pendingFrontend) continue;
 
     if (debounceTimer) {
       clearTimeout(debounceTimer);

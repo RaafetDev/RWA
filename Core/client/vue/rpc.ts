@@ -8,6 +8,77 @@
 
 import { isModuleEnabled } from "./ritawapp.modules.ts";
 
+let _warnedFallback = false;
+
+function getNativeBridge(): ((payload: string) => Promise<string>) | null {
+  const g = typeof window !== "undefined" ? (window as any) : (globalThis as any);
+  const fn = g.rita_module_call || g.rita_bridge_call || g.webui?.rita_module_call;
+  if (typeof fn === "function") return fn;
+
+  const w = g.webui;
+  if (
+    w &&
+    typeof w.call === "function" &&
+    typeof w.isConnected === "function" &&
+    w.isConnected()
+  ) {
+    return async (payload: string) => {
+      if (typeof g.rita_module_call === "function") {
+        return g.rita_module_call(payload);
+      }
+      return w.call("rita_module_call", payload);
+    };
+  }
+  return null;
+}
+
+async function ensureRpcReady(
+  timeoutMs = 8000,
+): Promise<((payload: string) => Promise<string>) | null> {
+  let fn = getNativeBridge();
+  if (fn) {
+    if (typeof window !== "undefined") {
+      (window as any).__RWA_RPC_MODE__ = "native";
+    }
+    return fn;
+  }
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, 25));
+    fn = getNativeBridge();
+    if (fn) {
+      if (typeof window !== "undefined") {
+        (window as any).__RWA_RPC_MODE__ = "native";
+      }
+      return fn;
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    (window as any).__RWA_RPC_MODE__ = "MOCK";
+  }
+  if (!_warnedFallback) {
+    _warnedFallback = true;
+    console.warn(
+      "[RitaWapp Mock] Native C module bridge not detected after timeout. Falling back to HTTP dev mock.",
+    );
+  }
+
+  if (typeof location !== "undefined" && location.origin) {
+    return async (payload: string) => {
+      const res = await fetch("/_rwa_rpc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      return await res.text();
+    };
+  }
+
+  return null;
+}
+
 export async function rpc(
   module: string,
   action: string,
@@ -20,44 +91,19 @@ export async function rpc(
   }
   const payload = JSON.stringify({ module, action, args });
 
-  const g = typeof globalThis !== "undefined" ? (globalThis as any) : {};
-  const bridgeFn = g.rita_module_call ||
-    g.rita_bridge_call ||
-    g.webui?.rita_module_call;
+  const bridgeFn = await ensureRpcReady();
 
   if (typeof bridgeFn !== "function") {
-    // Graceful in-browser dev fallback or connection queue
-    return new Promise((resolve, reject) => {
-      let retries = 0;
-      const interval = setInterval(() => {
-        retries++;
-        const fn = g.rita_module_call ||
-          g.rita_bridge_call ||
-          g.webui?.rita_module_call;
-
-        if (typeof fn === "function") {
-          clearInterval(interval);
-          fn(payload)
-            .then((raw: string) => {
-              try {
-                const parsed = JSON.parse(raw);
-                if (parsed.success) {
-                  resolve(parsed.data !== undefined ? parsed.data : parsed);
-                } else reject(new Error(parsed.error || "Native RPC failed"));
-              } catch {
-                resolve(raw);
-              }
-            })
-            .catch(reject);
-        } else if (retries > 30) {
-          clearInterval(interval);
-          console.warn(
-            `[RitaWapp RPC] Native bridge not detected for ${module}.${action}. Falling back to browser polyfill.`,
-          );
-          resolve(null);
-        }
-      }, 50);
-    });
+    if (typeof window !== "undefined") {
+      (window as any).__RWA_RPC_MODE__ = "MOCK";
+    }
+    if (!_warnedFallback) {
+      _warnedFallback = true;
+      console.warn(
+        `[RitaWapp RPC] Native bridge not detected for ${module}.${action}. Falling back to browser polyfill.`,
+      );
+    }
+    return null;
   }
 
   try {
