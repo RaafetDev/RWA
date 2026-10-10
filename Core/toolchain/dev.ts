@@ -488,8 +488,15 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
             handled = true;
           }
         } else if (module === "http" || module === "https") {
-          const reqUrl = args[0] ? String(args[0]) : "";
-          const opts = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+          let reqUrl = "";
+          let opts: any = {};
+          if (typeof args[0] === "object" && args[0] !== null) {
+            reqUrl = (args[0] as any).url || "";
+            opts = args[0];
+          } else {
+            reqUrl = args[0] ? String(args[0]) : "";
+            opts = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+          }
           try {
             const fetchRes = await fetch(reqUrl, {
               method: opts.method || (action === "post" ? "POST" : "GET"),
@@ -753,6 +760,7 @@ export async function runDevServer(options: DevServerOptions = {}) {
   );
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let isRecompiling = false;
   let pendingFrontend = false;
   let pendingNative = false;
 
@@ -772,13 +780,18 @@ export async function runDevServer(options: DevServerOptions = {}) {
 
   for await (const event of watcher) {
     const relevantPaths = event.paths.filter((p) => {
-      const norm = p.replaceAll("\\", "/");
+      const norm = p.replaceAll("\\", "/").toLowerCase();
+      const baseName = norm.split("/").pop() || "";
       return (
         !norm.includes("/.dev/") &&
-        !norm.includes("/.rwa/") &&
-        !norm.includes("/dist/") &&
-        !norm.includes("/dist") &&
-        !norm.includes(".git")
+        !norm.includes(".rwa") &&
+        !norm.includes("dist") &&
+        !norm.includes(".git") &&
+        !norm.includes("node_modules") &&
+        !norm.endsWith(".db") &&
+        !norm.endsWith(".db-wal") &&
+        !norm.endsWith(".db-shm") &&
+        baseName !== ".rwa_dev_db.json"
       );
     });
 
@@ -787,12 +800,12 @@ export async function runDevServer(options: DevServerOptions = {}) {
     let lastChangedFile = "";
     for (const p of relevantPaths) {
       const norm = p.replaceAll("\\", "/").toLowerCase();
+      const baseName = p.replaceAll("\\", "/").split("/").pop() || "";
       lastChangedFile = p;
       if (
-        norm.endsWith(".json") ||
         norm.endsWith(".c") ||
         norm.endsWith(".h") ||
-        norm.endsWith("ritawapp.config.ts")
+        baseName === "RitaWapp.json"
       ) {
         pendingNative = true;
       } else if (
@@ -814,6 +827,8 @@ export async function runDevServer(options: DevServerOptions = {}) {
     }
 
     debounceTimer = setTimeout(async () => {
+      if (isRecompiling) return;
+      isRecompiling = true;
       try {
         if (pendingNative) {
           const oldPid = appProcess ? appProcess.pid : "none";
@@ -861,8 +876,9 @@ export async function runDevServer(options: DevServerOptions = {}) {
         pendingNative = false;
         pendingFrontend = false;
         debounceTimer = null;
+        isRecompiling = false;
       }
-    }, 200);
+    }, 300);
   }
 }
 

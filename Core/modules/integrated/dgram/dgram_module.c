@@ -43,6 +43,31 @@ static void ensure_dgram_cs(void) {
     }
 }
 
+static void get_wsa_error_desc(int code, char* buf, size_t max_buf) {
+    char msg[256] = {0};
+    DWORD ret = FormatMessageA(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        code,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        msg,
+        sizeof(msg),
+        NULL
+    );
+    size_t len = strlen(msg);
+    while (len > 0 && (msg[len - 1] == '\r' || msg[len - 1] == '\n' || msg[len - 1] == ' ' || msg[len - 1] == '.')) {
+        msg[--len] = '\0';
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (msg[i] == '"' || msg[i] == '\\') msg[i] = '\'';
+    }
+    if (ret > 0 && len > 0) {
+        snprintf(buf, max_buf, "%d (%s)", code, msg);
+    } else {
+        snprintf(buf, max_buf, "%d", code);
+    }
+}
+
 static const char b64_table_dg[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static void dgram_base64_encode(const unsigned char* in, size_t in_len, char* out, size_t max_out) {
@@ -126,29 +151,32 @@ void handle_dgram_action(size_t window, const char* action, const char* json_req
         if (port < 0) port = 0;
         if (!addr_str[0] || strcmp(addr_str, "0.0.0.0") == 0) strncpy(addr_str, "127.0.0.1", sizeof(addr_str) - 1);
 
+        ensure_dgram_cs();
         SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (s == INVALID_SOCKET) {
             int wsa_err = WSAGetLastError();
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create UDP socket (WSA: %d)\",\"wsaError\":%d}", wsa_err, wsa_err);
+            char err_desc[256] = {0};
+            get_wsa_error_desc(wsa_err, err_desc, sizeof(err_desc));
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create UDP socket: %s\",\"wsaError\":%d}", err_desc, wsa_err);
             return;
         }
 
         int opt = 1;
-        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+        setsockopt(s, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&opt, sizeof(opt));
 
         struct sockaddr_in sa;
         memset(&sa, 0, sizeof(sa));
         sa.sin_family = AF_INET;
         sa.sin_port = htons((unsigned short)port);
         sa.sin_addr.s_addr = inet_addr(addr_str);
-        if (sa.sin_addr.s_addr == INADDR_NONE) {
-            sa.sin_addr.s_addr = htonl(INADDR_ANY);
+        if (sa.sin_addr.s_addr == INADDR_NONE || sa.sin_addr.s_addr == htonl(INADDR_ANY)) {
+            sa.sin_addr.s_addr = inet_addr("127.0.0.1");
         }
 
         int bind_res = bind(s, (struct sockaddr*)&sa, sizeof(sa));
         int initial_wsa_err = (bind_res != 0) ? WSAGetLastError() : 0;
         if (bind_res != 0) {
-            // Port busy: retry adjacent ports or port 0
+            // Port busy: retry up to 10 following ports
             bool rebound = false;
             for (int retry_port = port + 1; retry_port <= port + 10; retry_port++) {
                 sa.sin_port = htons((unsigned short)retry_port);
@@ -159,14 +187,10 @@ void handle_dgram_action(size_t window, const char* action, const char* json_req
                 }
             }
             if (!rebound) {
-                sa.sin_port = htons(0);
-                if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
-                    rebound = true;
-                }
-            }
-            if (!rebound) {
                 closesocket(s);
-                snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind UDP port (WSA: %d)\",\"wsaError\":%d}", initial_wsa_err, initial_wsa_err);
+                char err_desc[256] = {0};
+                get_wsa_error_desc(initial_wsa_err, err_desc, sizeof(err_desc));
+                snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind UDP port %d: %s\",\"wsaError\":%d}", port, err_desc, initial_wsa_err);
                 return;
             }
         }

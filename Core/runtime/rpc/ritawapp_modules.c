@@ -229,7 +229,13 @@ void ritawapp_request_graceful_exit(size_t window) {
     HANDLE hThread = CreateThread(NULL, 0, ExitTimeoutThread, NULL, 0, NULL);
     if (hThread) CloseHandle(hThread);
 
-    // 2. Stop network servers & close sockets
+    // 2. Close Win32 window on UI thread
+    HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
+    if (hwnd) {
+        PostMessage(hwnd, WM_CLOSE, 0, 0);
+    }
+
+    // 3. Stop network servers & cleanup modules
 #if (defined(RITA_MODULE_HTTP_ENABLE) && RITA_MODULE_HTTP_ENABLE) || (defined(RITA_MODULE_WS_ENABLE) && RITA_MODULE_WS_ENABLE)
     rita_mongoose_stop();
 #endif
@@ -243,11 +249,7 @@ void ritawapp_request_graceful_exit(size_t window) {
     rita_sqlite_close();
 #endif
 
-    // 3. Close Win32 window and post quit message
-    HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
-    if (hwnd) {
-        PostMessage(hwnd, WM_CLOSE, 0, 0);
-    }
+    // 4. Post quit message to end event loop
     PostQuitMessage(0);
     webui_exit();
 }

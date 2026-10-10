@@ -19,6 +19,7 @@ export class DesktopResponse {
   statusText: string;
   ok: boolean;
   headers: Headers;
+  body: string;
   private _body: string;
 
   constructor(
@@ -27,6 +28,7 @@ export class DesktopResponse {
     headers: Record<string, string> = {},
   ) {
     this._body = body;
+    this.body = body;
     this.status = status;
     this.statusText = status >= 200 && status < 300 ? "OK" : "Error";
     this.ok = status >= 200 && status < 300;

@@ -337,19 +337,32 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
     }
 
     char host[256] = {0};
-    char path[2048] = "/";
+    char path[2048] = {0};
+    char extra[1024] = {0};
     URL_COMPONENTSA urlComp;
     memset(&urlComp, 0, sizeof(urlComp));
     urlComp.dwStructSize = sizeof(urlComp);
     urlComp.lpszHostName = host;
-    urlComp.dwHostNameLength = sizeof(host);
+    urlComp.dwHostNameLength = sizeof(host) - 1;
     urlComp.lpszUrlPath = path;
-    urlComp.dwUrlPathLength = sizeof(path);
+    urlComp.dwUrlPathLength = sizeof(path) - 1;
+    urlComp.lpszExtraInfo = extra;
+    urlComp.dwExtraInfoLength = sizeof(extra) - 1;
 
     if (!InternetCrackUrlA(url, (DWORD)strlen(url), 0, &urlComp)) {
         InternetCloseHandle(hInternet);
         snprintf(response, max_resp, "{\"success\":false,\"error\":\"Malformed URL\"}");
         return false;
+    }
+
+    host[urlComp.dwHostNameLength] = '\0';
+    path[urlComp.dwUrlPathLength] = '\0';
+    extra[urlComp.dwExtraInfoLength] = '\0';
+    if (path[0] == '\0') {
+        strcpy(path, "/");
+    }
+    if (extra[0] != '\0') {
+        strncat(path, extra, sizeof(path) - strlen(path) - 1);
     }
 
     bool isHttps = (urlComp.nScheme == INTERNET_SCHEME_HTTPS);
@@ -375,9 +388,6 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
         snprintf(response, max_resp, "{\"success\":false,\"error\":\"HttpOpenRequest failed\"}");
         return false;
     }
-
-    DWORD decodeOption = 1;
-    InternetSetOptionA(hRequest, INTERNET_OPTION_HTTP_DECODING, &decodeOption, sizeof(decodeOption));
 
     DWORD bodyLen = (body_str && body_str[0]) ? (DWORD)strlen(body_str) : 0;
     DWORD hdrLen = (headers_str && headers_str[0]) ? (DWORD)strlen(headers_str) : 0;
@@ -427,7 +437,7 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
     InternetCloseHandle(hInternet);
 
     // Escape response body for JSON delivery
-    char* escaped = (char*)malloc(totalBytes * 2 + 128);
+    char* escaped = (char*)malloc(totalBytes * 6 + 128);
     if (!escaped) {
         free(readBuf);
         snprintf(response, max_resp, "{\"success\":false,\"error\":\"Out of memory on escape\"}");
@@ -436,18 +446,21 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
 
     size_t e_idx = 0;
     for (size_t b = 0; b < totalBytes; b++) {
-        char ch = readBuf[b];
-        if (ch == '\"' || ch == '\\') { escaped[e_idx++] = '\\'; escaped[e_idx++] = ch; }
+        unsigned char ch = (unsigned char)readBuf[b];
+        if (ch == '\"' || ch == '\\') { escaped[e_idx++] = '\\'; escaped[e_idx++] = (char)ch; }
         else if (ch == '\n') { escaped[e_idx++] = '\\'; escaped[e_idx++] = 'n'; }
         else if (ch == '\r') { escaped[e_idx++] = '\\'; escaped[e_idx++] = 'r'; }
         else if (ch == '\t') { escaped[e_idx++] = '\\'; escaped[e_idx++] = 't'; }
-        else if ((unsigned char)ch < 32) { /* skip */ }
-        else { escaped[e_idx++] = ch; }
+        else if (ch < 32) {
+            e_idx += snprintf(escaped + e_idx, 7, "\\u%04x", ch);
+        }
+        else { escaped[e_idx++] = (char)ch; }
     }
     escaped[e_idx] = '\0';
     free(readBuf);
 
-    snprintf(response, max_resp, "{\"success\":true,\"data\":{\"statusCode\":%lu,\"body\":\"%s\"}}", statusCode, escaped);
+    snprintf(response, max_resp, "{\"success\":true,\"data\":{\"statusCode\":%lu,\"statusText\":\"%s\",\"body\":\"%s\"}}",
+        statusCode, (statusCode >= 200 && statusCode < 300) ? "OK" : "Error", escaped);
     free(escaped);
     return true;
 }

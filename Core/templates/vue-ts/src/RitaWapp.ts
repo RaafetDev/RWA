@@ -1906,6 +1906,7 @@ export class NetServer extends EventEmitter {
       const res = await rpc("net", "listen", String(port), host);
       if (res && res.id) {
         this._id = res.id;
+        if (res.port) this.port = res.port;
         this.listening = true;
         s_ui_servers.set(this._id, this);
         this.emit("listening");
@@ -2447,8 +2448,10 @@ export async function desktopFetch(
     }).send();
     return {
       status: res.statusCode,
+      statusText: res.statusMessage || (res.statusCode >= 200 && res.statusCode < 300 ? "OK" : "Error"),
       ok: res.statusCode >= 200 && res.statusCode < 300,
       headers: new Headers(res.headers),
+      body: res.body,
       async text() {
         return res.body;
       },

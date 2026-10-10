@@ -35,30 +35,39 @@ void handle_app_window_action(size_t window, const char* action, const char* jso
         bool frameless = ritawapp_get_frameless_state();
         snprintf(response, max_resp, "{\"success\":true,\"data\":%s}", frameless ? "true" : "false");
 
-    } else if (strcmp(action, "minimize") == 0) {
+    } else if (strcmp(action, "minimize") == 0 || strcmp(action, "minimaze") == 0) {
         HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
         if (hwnd) {
 #if defined(RITA_MODULE_TRAY_ENABLE) && RITA_MODULE_TRAY_ENABLE
             if (ritawapp_tray_is_hide_to_tray_enabled()) {
                 ShowWindow(hwnd, SW_HIDE);
             } else {
-                PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
                 ShowWindow(hwnd, SW_MINIMIZE);
             }
 #else
-            PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
             ShowWindow(hwnd, SW_MINIMIZE);
 #endif
         }
         snprintf(response, max_resp, "{\"success\":true}");
     } else if (strcmp(action, "maximize") == 0) {
-        ritawapp_window_toggle_maximize(window);
+        HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
+        if (hwnd) {
+            if (IsZoomed(hwnd)) {
+                ShowWindow(hwnd, SW_RESTORE);
+            } else {
+                ShowWindow(hwnd, SW_MAXIMIZE);
+            }
+        }
         snprintf(response, max_resp, "{\"success\":true}");
     } else if (strcmp(action, "unmaximize") == 0 || strcmp(action, "restore") == 0) {
-        ritawapp_window_restore(window);
+        HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
+        if (hwnd) {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
         snprintf(response, max_resp, "{\"success\":true}");
     } else if (strcmp(action, "isMaximized") == 0) {
-        bool zoomed = ritawapp_window_is_maximized(window);
+        HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
+        bool zoomed = hwnd ? (IsZoomed(hwnd) != 0) : false;
         snprintf(response, max_resp, "{\"success\":true,\"data\":%s}", zoomed ? "true" : "false");
     } else if (strcmp(action, "close") == 0) {
         snprintf(response, max_resp, "{\"success\":true}");

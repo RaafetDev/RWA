@@ -207,6 +207,7 @@ export class Server extends EventEmitter {
       const res = await rpc("net", "listen", String(port), host);
       if (res && res.id) {
         this._id = res.id;
+        if (res.port) this.port = res.port;
         this.listening = true;
         s_servers.set(this._id, this);
         this.emit("listening");

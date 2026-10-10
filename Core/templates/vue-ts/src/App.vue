@@ -13,10 +13,10 @@
       </div>
 
       <!-- Frameless Native Window Action Controls -->
-      <div class="titlebar-controls" @mousedown.stop>
-        <button class="win-btn win-minimize" @mousedown.stop @click.stop="handleMinimize" title="Minimize">−</button>
-        <button class="win-btn win-maximize" @mousedown.stop @click.stop="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">{{ isMaximized ? '❐' : '□' }}</button>
-        <button class="win-btn win-close" @mousedown.stop @click.stop="handleClose" title="Close">✕</button>
+      <div class="titlebar-controls" style="-webkit-app-region: no-drag" @mousedown.stop>
+        <button class="win-btn win-minimize" style="-webkit-app-region: no-drag" @mousedown.stop @click.stop="handleMinimize" title="Minimize">−</button>
+        <button class="win-btn win-maximize" style="-webkit-app-region: no-drag" @mousedown.stop @click.stop="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">{{ isMaximized ? '❐' : '□' }}</button>
+        <button class="win-btn win-close" style="-webkit-app-region: no-drag" @mousedown.stop @click.stop="handleClose" title="Close">✕</button>
       </div>
     </header>
 
@@ -691,9 +691,10 @@ async function testNetTcp() {
     });
 
     server.listen(19876, "127.0.0.1", () => {
-      printLog("NET_TCP", "Server listening on 127.0.0.1:19876. Connecting client socket...", "info");
+      const boundPort = server.address().port || 19876;
+      printLog("NET_TCP", `Server listening on 127.0.0.1:${boundPort}. Connecting client socket...`, "info");
       
-      const client = net.connect({ port: 19876, host: "127.0.0.1" }, () => {
+      const client = net.connect({ port: boundPort, host: "127.0.0.1" }, () => {
         printLog("NET_TCP", "Client: Connected to echo server! Sending handshake...", "info");
         client.write("Hello from RitaWapp TCP Socket!");
       });
@@ -706,17 +707,17 @@ async function testNetTcp() {
         printLog("NET_TCP", "Client and server gracefully closed. TCP test passed!", "success");
       });
 
-      client.on("error", (err) => {
-        printLog("NET_TCP_ERR", `Client error: ${err.message}`, "error");
+      client.on("error", (err: any) => {
+        printLog("NET_TCP_ERR", `Client error: ${err?.message || err}`, "error");
         server.close();
       });
     });
 
-    server.on("error", (err) => {
-      printLog("NET_TCP_ERR", `Server error: ${err.message}`, "error");
+    server.on("error", (err: any) => {
+      printLog("NET_TCP_ERR", `Server error: ${err?.message || err}`, "error");
     });
   } catch (err: any) {
-    printLog("NET_TCP_ERR", err.message, "error");
+    printLog("NET_TCP_ERR", err?.message || String(err), "error");
   }
 }
 
@@ -734,21 +735,22 @@ async function testDgramUdp() {
     });
 
     socket.bind(19877, "127.0.0.1", () => {
-      printLog("DGRAM_UDP", "Socket bound to 127.0.0.1:19877. Sending datagram packet...", "info");
-      socket.send("RitaWapp UDP Datagram Payload", 19877, "127.0.0.1", (err, bytes) => {
+      const boundPort = socket.address().port || 19877;
+      printLog("DGRAM_UDP", `Socket bound to 127.0.0.1:${boundPort}. Sending datagram packet...`, "info");
+      socket.send("RitaWapp UDP Datagram Payload", boundPort, "127.0.0.1", (err, bytes) => {
         if (err) {
-          printLog("DGRAM_UDP_ERR", `Send error: ${err.message}`, "error");
+          printLog("DGRAM_UDP_ERR", `Send error: ${err?.message || err}`, "error");
         } else {
           printLog("DGRAM_UDP", `Sent ${bytes} bytes via UDP datagram.`, "info");
         }
       });
     });
 
-    socket.on("error", (err) => {
-      printLog("DGRAM_UDP_ERR", err.message, "error");
+    socket.on("error", (err: any) => {
+      printLog("DGRAM_UDP_ERR", `Socket error: ${err?.message || err}`, "error");
     });
   } catch (err: any) {
-    printLog("DGRAM_UDP_ERR", err.message, "error");
+    printLog("DGRAM_UDP_ERR", err?.message || String(err), "error");
   }
 }
 
@@ -758,8 +760,10 @@ async function testHttpFetch() {
     const res = await desktopFetch("https://httpbin.org/get", {
       headers: { "User-Agent": "RitaWapp-Desktop-Runtime/1.0" },
     });
-    printLog("HTTP_FETCH", `desktopFetch status: ${res.status} ${res.statusText}`, res.ok ? "success" : "warn");
-    const data = await res.json().catch(() => ({ body: res.statusText }));
+    printLog("HTTP_FETCH", `desktopFetch status: ${res.status} ${res.statusText || 'OK'}`, res.ok ? "success" : "warn");
+    const text = await res.text();
+    let data: any = {};
+    try { data = JSON.parse(text); } catch { data = { body: text }; }
     printLog("HTTP_FETCH", `Response status: ${res.status}\nHost Origin: ${data.origin || '200 OK'}`, "success");
 
     printLog("HTTP_GET", "Testing http.get() native wrapper...", "info");
@@ -769,11 +773,11 @@ async function testHttpFetch() {
       resp.on("end", () => {
         printLog("HTTP_GET", `http.get() completed with status ${resp.statusCode}: ${body.trim()}`, "success");
       });
-    }).on("error", (err: Error) => {
-      printLog("HTTP_GET_ERR", err.message, "error");
+    }).on("error", (err: any) => {
+      printLog("HTTP_GET_ERR", err?.message || String(err), "error");
     });
   } catch (err: any) {
-    printLog("HTTP_FETCH_ERR", err.message, "error");
+    printLog("HTTP_FETCH_ERR", err?.message || String(err), "error");
   }
 }
 

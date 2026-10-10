@@ -88,7 +88,7 @@ static void get_harddrive_id(char* out, size_t max_len) {
         char guid[128] = {0};
         get_machine_guid(guid, sizeof(guid));
         if (guid[0]) {
-            snprintf(out, max_len, "DISK-%s", guid);
+            snprintf(out, max_len, "DISK-%.100s", guid);
         } else {
             snprintf(out, max_len, "DISK-STABLE-STORAGE-0");
         }
@@ -165,7 +165,7 @@ static void get_motherboard_id(char* out, size_t max_len) {
         char guid[128] = {0};
         get_machine_guid(guid, sizeof(guid));
         if (guid[0]) {
-            snprintf(out, max_len, "MB-%s", guid);
+            snprintf(out, max_len, "MB-%.100s", guid);
         } else {
             snprintf(out, max_len, "MB-STABLE-BOARD-0");
         }
@@ -225,9 +225,9 @@ static void get_fingerprint(char* out, size_t max_len) {
 
 // Global cached hardware identification for zero-latency instant responses
 static char s_cached_cpu_id[64] = {0};
-static char s_cached_hd_id[128] = {0};
-static char s_cached_mb_id[128] = {0};
-static char s_cached_fp[128] = {0};
+static char s_cached_hd_id[256] = {0};
+static char s_cached_mb_id[256] = {0};
+static char s_cached_fp[256] = {0};
 static bool s_hw_cached = false;
 
 static void ensure_hw_cached(void) {
