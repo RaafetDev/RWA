@@ -20,7 +20,17 @@ export interface SystemTicksResponse {
  * Invokes an action on a native module via RitaWapp RPC bridge.
  */
 async function callCustomModule<T>(action: string, args: unknown[] = []): Promise<T> {
-  if (typeof window.rita_module_call !== "function") {
+  const g = typeof window !== "undefined" ? (window as any) : (globalThis as any);
+  let fn = g.rita_module_call || g.rita_bridge_call || g.webui?.rita_module_call;
+  if (typeof fn !== "function") {
+    const start = Date.now();
+    while (Date.now() - start < 3000) {
+      await new Promise((r) => setTimeout(r, 20));
+      fn = g.rita_module_call || g.rita_bridge_call || g.webui?.rita_module_call;
+      if (typeof fn === "function") break;
+    }
+  }
+  if (typeof fn !== "function") {
     throw new Error("RitaWapp RPC bridge (rita_module_call) is not available.");
   }
 
@@ -30,7 +40,7 @@ async function callCustomModule<T>(action: string, args: unknown[] = []): Promis
     args,
   });
 
-  const responseRaw = await window.rita_module_call(payload);
+  const responseRaw = await fn(payload);
   const res = JSON.parse(responseRaw);
 
   if (!res.success) {

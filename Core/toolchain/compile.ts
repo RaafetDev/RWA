@@ -7,6 +7,7 @@
  * ============================================================================
  */
 
+import { basename } from "jsr:@std/path@1.0.9";
 import { loadConfigFile, type RitaWappConfig } from "../config/config.ts";
 import {
   INTEGRATED_MODULES,
@@ -484,7 +485,27 @@ ${moduleMacros}
   }
 
   // Safely copy executable to final destination (supports Arabic and Unicode folder paths)
-  await Deno.copyFile(tempExe, targetExe);
+  try {
+    await Deno.copyFile(tempExe, targetExe);
+  } catch (err: unknown) {
+    if (String(err).includes("os error 32") || String(err).includes("used by another process")) {
+      const exeName = basename(targetExe);
+      try {
+        const killCmd = new Deno.Command("taskkill", {
+          args: ["/F", "/IM", exeName, "/T"],
+          stdout: "null",
+          stderr: "null",
+        });
+        await killCmd.output();
+        await new Promise((r) => setTimeout(r, 250));
+        await Deno.copyFile(tempExe, targetExe);
+      } catch {
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
   try {
     await Deno.remove(tempExe);
   } catch {}

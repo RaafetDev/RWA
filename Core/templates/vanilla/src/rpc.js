@@ -24,8 +24,22 @@ export async function rpc(module, action, ...args) {
               }
             })
             .catch(reject);
-        } else if (retries > 40) {
+        } else if (retries > 30) {
           clearInterval(interval);
+          if (typeof location !== "undefined" && location.origin) {
+            fetch("/_rwa_rpc", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data && data.success) resolve(data.data !== undefined ? data.data : data);
+                else resolve(null);
+              })
+              .catch(() => resolve(null));
+            return;
+          }
           console.warn(`[RitaWapp RPC] Native bridge not detected for ${module}.${action}`);
           resolve(null);
         }

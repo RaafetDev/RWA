@@ -52,18 +52,27 @@ export async function compileVueProject(projectDir: string): Promise<string> {
       try {
         const compCode = await Deno.readTextFile(entry);
         const relPath = relative(srcDir, entry).replaceAll("\\", "/");
-        const compId = relPath.replace(/\.vue$/, "").replace(/[^a-zA-Z0-9_]/g, "_");
+        const compId = relPath.replace(/\.vue$/, "").replace(
+          /[^a-zA-Z0-9_]/g,
+          "_",
+        );
         const compiledComp = compileSingleVueFile(compCode, compId, relPath);
         subComponentsCode.push(compiledComp.js);
         if (compiledComp.css) styles.push(compiledComp.css);
       } catch (err: unknown) {
-        logger.warn(`Failed to compile Vue component ${entry}: ${(err as Error).message}`);
+        logger.warn(
+          `Failed to compile Vue component ${entry}: ${(err as Error).message}`,
+        );
       }
     }
   }
 
   // 2. Compile main App.vue
-  const compiledApp = compileSingleVueFile(appVueContent, "app_root", "App.vue");
+  const compiledApp = compileSingleVueFile(
+    appVueContent,
+    "app_root",
+    "App.vue",
+  );
   if (compiledApp.css) styles.push(compiledApp.css);
 
   // 3. Compile ritawapp.modules.ts
@@ -76,7 +85,8 @@ export async function compileVueProject(projectDir: string): Promise<string> {
     });
     modulesJs = transformed.code;
   } catch {
-    modulesJs = "export const enabledModules = {}; export const isAssetsMod = false; export const isModuleEnabled = () => true;";
+    modulesJs =
+      "export const enabledModules = {}; export const isAssetsMod = false; export const isModuleEnabled = () => true;";
   }
 
   // 4. Compile RitaWapp.ts
@@ -135,59 +145,64 @@ app.mount("#app");
 
   await Deno.writeTextFile(join(distDir, "app.bundle.js"), appBundleJs);
 
-  // 7. Assemble 100% Self-Contained Inlined Scripts (Zero Data URIs, Zero CORS issues)
-  const globalVueJs = vueRuntimeJs.replace(
+  // 7. Helper: Clean ES Module syntax (exports/imports) for seamless inline execution
+  const cleanModuleSyntax = (code: string) => {
+    return code
+      .replace(
+        /import\s*\{([^}]*)\}\s*from\s*["'][^"']*vue[^"']*["'];?/g,
+        (_, imports) => {
+          const destructured = imports.replace(
+            /([a-zA-Z0-9_$]+)\s+as\s+([a-zA-Z0-9_$]+)/g,
+            "$1: $2",
+          );
+          return `var { ${destructured} } = window.Vue;`;
+        },
+      )
+      .replace(
+        /import\s*\*\s*as\s+([a-zA-Z0-9_$]+)\s+from\s*["'][^"']*vue[^"']*["'];?/g,
+        "var $1 = window.Vue;",
+      )
+      .replace(
+        /import\s+([a-zA-Z0-9_$]+)\s+from\s*["'][^"']*vue[^"']*["'];?/g,
+        "var $1 = window.Vue;",
+      )
+      .replace(
+        /import\s*\{[^}]*\}\s*from\s*["'][^"']*(RitaWapp|ritawapp\.modules)[^"']*["'];?/g,
+        "",
+      )
+      .replace(
+        /import\s+([a-zA-Z0-9_$]+)\s+from\s*["'][^"']*(RitaWapp|ritawapp\.modules)[^"']*["'];?/g,
+        "",
+      )
+      .replace(
+        /import\s+([a-zA-Z0-9_$]+)\s+from\s*["'][^"']+\/([a-zA-Z0-9_]+)\.vue["'];?/g,
+        "var $1 = (typeof __comp_$2 !== 'undefined' ? __comp_$2 : window.$1);",
+      )
+      .replace(/import\s+["'][^"']+["'];?/g, "")
+      .replace(/\bexport\s+default\s+[^;]+;?/g, "")
+      .replace(
+        /\bexport\s+(async\s+)?function\s+/g,
+        (_, a) => (a || "") + "function ",
+      )
+      .replace(/\bexport\s+class\s+/g, "class ")
+      .replace(/\bexport\s+const\s+/g, "const ")
+      .replace(/\bexport\s+let\s+/g, "let ")
+      .replace(/\bexport\s+var\s+/g, "var ")
+      .replace(/\bexport\s*\{[^}]*\};?/g, "");
+  };
+
+  const convertedVue = vueRuntimeJs.replace(
     /export\s*\{([^}]+)\}/,
     (_, body) => {
       const converted = body.replace(
         /([a-zA-Z0-9_$]+)\s+as\s+([a-zA-Z0-9_$]+)/g,
         "$2: $1",
       );
-      return `const Vue = { ${converted} };\nglobalThis.Vue = Vue;\nif (typeof window !== "undefined") window.Vue = Vue;`;
+      return `const Vue = { ${converted} };\nif (Vue.defineComponent && !Vue._defineComponent) Vue._defineComponent = Vue.defineComponent;\nglobalThis.Vue = Vue;\nif (typeof window !== "undefined") window.Vue = Vue;`;
     },
   );
 
-  const globalModulesJs = modulesJs
-    .replace(/export\s+const\s+/g, "const ")
-    .replace(/export\s+function\s+/g, "function ")
-    .replace(/export\s+\{[^}]+\};?/g, "") + `
-window.__RWA_MODULES__ = {
-  enabledModules: typeof enabledModules !== "undefined" ? enabledModules : {},
-  isAssetsMod: typeof isAssetsMod !== "undefined" ? isAssetsMod : false,
-  isModuleEnabled: typeof isModuleEnabled !== "undefined" ? isModuleEnabled : () => true,
-  getAssetUrl: typeof getAssetUrl !== "undefined" ? getAssetUrl : (p) => p,
-};
-`;
-
-  const globalRitaJs = ritaWappJs
-    .replace(/import\s*\{[^}]*\}\s*from\s*["'][^"']*ritawapp\.modules[^"']*["'];?/g, `
-const { enabledModules, isAssetsMod, isModuleEnabled, getAssetUrl } = (window.__RWA_MODULES__ || {});
-`)
-    .replace(/import\s*\{[^}]*\}\s*from\s*["']vue["'];?/g, `
-const { createApp, ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } = (window.Vue || {});
-`)
-    .replace(/export\s+const\s+RitaWapp\s*=/g, "const RitaWapp =")
-    .replace(/export\s+default\s+RitaWapp;?/g, "")
-    .replace(/export\s*\{[^}]*\};?/g, "") + `
-window.RitaWapp = typeof RitaWapp !== "undefined" ? RitaWapp : { install() {} };
-`;
-
-  const cleanAppJs = compiledApp.js
-    .replace(/import\s*\{([^}]*)\}\s*from\s*["']vue["'];?/g, "const { $1 } = window.Vue;")
-    .replace(/import\s*\*\s*as\s+(\w+)\s+from\s*["']vue["'];?/g, "const $1 = window.Vue;")
-    .replace(/import\s*\{[^}]*\}\s*from\s*["'][^"']*RitaWapp[^"']*["'];?/g, "")
-    .replace(/import\s*\{[^}]*\}\s*from\s*["'][^"']*ritawapp\.modules[^"']*["'];?/g, "");
-
-  const cleanSubComponents = subComponentsCode
-    .map((c) =>
-      c
-        .replace(/import\s*\{([^}]*)\}\s*from\s*["']vue["'];?/g, "const { $1 } = window.Vue;")
-        .replace(/import\s*\*\s*as\s+(\w+)\s+from\s*["']vue["'];?/g, "const $1 = window.Vue;")
-        .replace(/import\s*\{[^}]*\}\s*from\s*["'][^"']*RitaWapp[^"']*["'];?/g, "")
-    )
-    .join("\n\n");
-
-  // 8. Assemble dist/index.html
+  // 8. Assemble dist/index.html with IIFE-isolated inline scopes
   const allCss = styles.join("\n\n");
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -204,20 +219,51 @@ ${allCss}
 <body>
   <div id="app" data-testid="ritawapp-app-root"></div>
   <script>
-${globalVueJs}
+// 1. Vue 3 Runtime
+(function() {
+${convertedVue}
+})();
 
-${globalModulesJs}
+// 2. RitaWapp Modules Configuration
+(function() {
+${cleanModuleSyntax(modulesJs)}
+window.__RWA_MODULES__ = {
+  enabledModules: typeof enabledModules !== "undefined" ? enabledModules : {},
+  isAssetsMod: typeof isAssetsMod !== "undefined" ? isAssetsMod : false,
+  isModuleEnabled: typeof isModuleEnabled !== "undefined" ? isModuleEnabled : () => true,
+  getAssetUrl: typeof getAssetUrl !== "undefined" ? getAssetUrl : (p) => p,
+};
+})();
 
-${globalRitaJs}
+// 3. RitaWapp Frontend Bridge & APIs
+(function() {
+var { enabledModules, isAssetsMod, isModuleEnabled } = (window.__RWA_MODULES__ || {});
+${cleanModuleSyntax(ritaWappJs)}
+window.RitaWapp = typeof RitaWapp !== "undefined" ? RitaWapp : { install() {} };
+})();
 
-${cleanSubComponents}
+// 4. Subcomponents (if any)
+${
+    subComponentsCode.length > 0
+      ? `(function() {
+var { createApp, ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } = (window.Vue || {});
+${cleanModuleSyntax(subComponentsCode.join("\n\n"))}
+})();`
+      : ""
+  }
 
-${cleanAppJs}
+// 5. Root Application Bootstrap
+(function() {
+var Vue = window.Vue;
+var RitaWapp = window.RitaWapp;
+var { createApp, ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } = (window.Vue || {});
 
-// Bootstrap Vue 3 Application
-const app = window.Vue.createApp(__sfc__);
+${cleanModuleSyntax(compiledApp.js)}
+
+var app = window.Vue.createApp(__sfc__);
 app.use(window.RitaWapp);
 app.mount("#app");
+})();
   </script>
 </body>
 </html>
@@ -226,7 +272,9 @@ app.mount("#app");
   const distHtmlPath = join(distDir, "index.html");
   await Deno.writeTextFile(distHtmlPath, htmlContent);
 
-  logger.debug(`[VueCompiler] Successfully compiled ${appVuePath} -> ${distHtmlPath}`);
+  logger.debug(
+    `[VueCompiler] Successfully compiled ${appVuePath} -> ${distHtmlPath}`,
+  );
   return distHtmlPath;
 }
 
@@ -260,8 +308,13 @@ function compileSingleVueFile(
   });
 
   // Rewrite "export default" to a local variable declaration
-  const componentVarName = scopeId === "app_root" ? "__sfc__" : `__comp_${scopeId}`;
-  const rewrittenJs = (sfc as any).rewriteDefault(transformed.code, componentVarName);
+  const componentVarName = scopeId === "app_root"
+    ? "__sfc__"
+    : `__comp_${scopeId}`;
+  const rewrittenJs = (sfc as any).rewriteDefault(
+    transformed.code,
+    componentVarName,
+  );
 
   // Collect CSS
   const css = descriptor.styles.map((s: any) => s.content).join("\n");

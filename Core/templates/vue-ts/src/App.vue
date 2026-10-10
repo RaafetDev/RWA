@@ -396,7 +396,9 @@ async function runShell() {
   try {
     printLog("SHELL", `Executing: ${shellCmd.value}`, "info");
     const res = await shell.exec(shellCmd.value);
-    printLog("SHELL", `Exit code ${res.exitCode}:\n${res.stdout.trim()}`, res.exitCode === 0 ? "success" : "warn");
+    const stdoutStr = (res && typeof res.stdout === "string") ? res.stdout.trim() : (typeof res === "string" ? res : JSON.stringify(res));
+    const exitCode = typeof res?.exitCode === "number" ? res.exitCode : 0;
+    printLog("SHELL", `Exit code ${exitCode}:\n${stdoutStr}`, exitCode === 0 ? "success" : "warn");
   } catch (err: any) {
     printLog("SHELL_ERR", err.message, "error");
   }

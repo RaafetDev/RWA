@@ -24,8 +24,17 @@
       action: action,
       args: args,
     });
-    const fn = window.rita_module_call || window.rita_bridge_call ||
+    let fn = window.rita_module_call || window.rita_bridge_call ||
       (window.webui && window.webui.rita_module_call);
+    if (!fn) {
+      const start = Date.now();
+      while (Date.now() - start < 3000) {
+        await new Promise((r) => setTimeout(r, 20));
+        fn = window.rita_module_call || window.rita_bridge_call ||
+          (window.webui && window.webui.rita_module_call);
+        if (fn) break;
+      }
+    }
     if (!fn) {
       throw new Error("RitaWapp native bridge not connected");
     }

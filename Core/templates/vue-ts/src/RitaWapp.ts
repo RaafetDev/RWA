@@ -69,32 +69,91 @@ export interface Plugin {
   install(app: App, ...options: any[]): any;
 }
 
+let _cachedRpcFn: ((payload: string) => Promise<string>) | null = null;
+let _readyPromise: Promise<((payload: string) => Promise<string>) | null> | null = null;
+
 /**
  * Low-level module invoker that communicates with the C runtime
  */
 async function ensureRpcReady(
-  timeoutMs = 10000,
+  timeoutMs = 500,
 ): Promise<((payload: string) => Promise<string>) | null> {
-  let fn = (window as any).rita_module_call || (window as any).rita_bridge_call;
-  if (typeof fn === "function") return fn;
+  if (_cachedRpcFn) return _cachedRpcFn;
+  if (_readyPromise) return _readyPromise;
 
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 40));
-    fn = (window as any).rita_module_call || (window as any).rita_bridge_call;
-    if (typeof fn === "function") return fn;
+  _readyPromise = (async () => {
+    const getNativeBridge = (): ((payload: string) => Promise<string>) | null => {
+      const g = typeof window !== "undefined" ? (window as any) : (globalThis as any);
+      const fn = g.rita_module_call || g.rita_bridge_call || g.webui?.rita_module_call;
+      if (typeof fn === "function") return fn;
 
-    // Check if WebUI bridge is connected and provides rita_module_call
-    const webui = (window as any).webui;
-    if (webui && typeof webui.call === "function") {
-      if (typeof webui.isConnected === "function" && webui.isConnected()) {
-        fn = (window as any).rita_module_call || (window as any).rita_bridge_call;
-        if (typeof fn === "function") return fn;
-        return (payload: string) => webui.call("rita_module_call", payload);
+      const w = g.webui;
+      if (
+        w &&
+        typeof w.call === "function" &&
+        typeof w.isConnected === "function" &&
+        w.isConnected()
+      ) {
+        return async (payload: string) => {
+          if (typeof g.rita_module_call === "function") {
+            return g.rita_module_call(payload);
+          }
+          return w.call("rita_module_call", payload);
+        };
+      }
+      return null;
+    };
+
+    let fn = getNativeBridge();
+    if (fn) {
+      _cachedRpcFn = fn;
+      return fn;
+    }
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 20));
+      fn = getNativeBridge();
+      if (fn) {
+        _cachedRpcFn = fn;
+        return fn;
       }
     }
+
+    // Dev server HTTP RPC fallback (when running in dev mode or in browser)
+    if (typeof location !== "undefined" && location.origin) {
+      try {
+        const probe = await fetch("/_rwa_rpc", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ module: "ping", action: "ping", args: [] }),
+        });
+        if (probe.ok) {
+          const httpFallback = async (payload: string) => {
+            const res = await fetch("/_rwa_rpc", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: payload,
+            });
+            return await res.text();
+          };
+          _cachedRpcFn = httpFallback;
+          return httpFallback;
+        }
+      } catch {}
+    }
+
+    return null;
+  })();
+
+  try {
+    const res = await _readyPromise;
+    return res;
+  } finally {
+    if (!_cachedRpcFn) {
+      _readyPromise = null;
+    }
   }
-  return null;
 }
 
 export async function rpc(
@@ -132,7 +191,11 @@ export async function rpc(
         }
       }
       return raw;
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.includes("WebSocket is not connected")) {
+        _cachedRpcFn = null;
+        _readyPromise = null;
+      }
       console.error(`[RitaWapp Native RPC] ${module}.${action} failed:`, err);
       throw err;
     }
@@ -293,6 +356,16 @@ function getMockFallback(module: string, action: string, args: unknown[]): any {
           size: 4286,
           compressedSize: 1024,
         }],
+      };
+    }
+    return { success: true };
+  }
+  if (module === "shell") {
+    if (action === "exec") {
+      return {
+        stdout: "desktop-user\n",
+        stderr: "",
+        exitCode: 0,
       };
     }
     return { success: true };

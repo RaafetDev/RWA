@@ -60,7 +60,27 @@ const LIVE_RELOAD_SNIPPET = `
     }
   }, true);
 
-  // 3. Hot Live-Reload Client
+  // 3. Forward Console Logs to Dev Server
+  ['log', 'warn', 'error'].forEach((level) => {
+    const orig = console[level];
+    console[level] = (...args) => {
+      orig.apply(console, args);
+      try {
+        fetch('/rwa-debug-log', {
+          method: 'POST',
+          body: '[' + level.toUpperCase() + '] ' + args.map(a => {
+            if (a instanceof Error) return a.stack || a.message;
+            if (typeof a === 'object' && a !== null) {
+              try { return JSON.stringify(a); } catch(_) { return String(a); }
+            }
+            return String(a);
+          }).join(' ')
+        }).catch(() => {});
+      } catch (_) {}
+    };
+  });
+
+  // 4. Hot Live-Reload Client
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   function connect() {
     const ws = new WebSocket(protocol + '//' + location.host + '/rwa-live-reload');
@@ -103,6 +123,13 @@ export async function createDevServer(projectDir: string): Promise<{
     const startTime = performance.now();
     const url = new URL(req.url);
 
+    // Debug log endpoint from client
+    if (url.pathname === "/rwa-debug-log") {
+      const msg = await req.text();
+      logger.info(`[BrowserConsole] ${msg}`);
+      return new Response("ok");
+    }
+
     // WebSocket live reload endpoint
     if (url.pathname === "/rwa-live-reload") {
       if (req.headers.get("upgrade") === "websocket") {
@@ -114,15 +141,23 @@ export async function createDevServer(projectDir: string): Promise<{
       return new Response("WebSocket required", { status: 400 });
     }
 
-    // Proxy WebUI JavaScript bridge
+    // Proxy WebUI JavaScript bridge with instant DOM-ready execution
     if (url.pathname === "/webui.js") {
       const webuiPort = await getWebuiPort();
       let lastErr: unknown = null;
-      for (let attempt = 0; attempt < 25; attempt++) {
+      for (let attempt = 0; attempt < 35; attempt++) {
         try {
           const res = await fetch(`http://127.0.0.1:${webuiPort}/webui.js`);
           if (res.ok) {
-            const jsText = await res.text();
+            let jsText = await res.text();
+            // Patch WebUI DOMContentLoaded listener so globalThis.webui is instantiated
+            // even if the script finishes loading after DOMContentLoaded has already fired.
+            jsText = jsText.replace(
+              /document\.addEventListener\("DOMContentLoaded",\s*function\(\)\{\s*(globalThis\.webui\s*=\s*new\s*WebuiBridge\([^)]+\);?)\s*\}\);?/,
+              `function __rwa_init__() { if (!globalThis.webui && typeof WebuiBridge !== "undefined") { $1 } }
+if (document.readyState === "complete" || document.readyState === "interactive") { __rwa_init__(); }
+else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
+            );
             const elapsed = (performance.now() - startTime).toFixed(1);
             logger.info(
               `[DevServer] GET /webui.js -> 200 application/javascript (${elapsed}ms)`,
@@ -137,7 +172,7 @@ export async function createDevServer(projectDir: string): Promise<{
         } catch (err) {
           lastErr = err;
         }
-        await new Promise((r) => setTimeout(r, 80));
+        await new Promise((r) => setTimeout(r, 60));
       }
       logger.error(
         `[DevServer] Failed to proxy /webui.js from port ${webuiPort}: ${lastErr}`,
@@ -146,6 +181,201 @@ export async function createDevServer(projectDir: string): Promise<{
         status: 503,
         headers: { "Content-Type": "application/javascript; charset=utf-8" },
       });
+    }
+
+    // Dev Server Native RPC Fallback endpoint (executes real operations when browser/client calls /_rwa_rpc)
+    if (url.pathname === "/_rwa_rpc" && req.method === "POST") {
+      try {
+        const bodyText = await req.text();
+        const rpcReq = JSON.parse(bodyText);
+        const { module, action, args = [] } = rpcReq;
+
+        if (module === "ping") {
+          return new Response(JSON.stringify({ success: true, data: "pong" }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        let result: any = null;
+        let handled = false;
+
+        if (module === "os") {
+          const cpus = navigator.hardwareConcurrency || 8;
+          if (action === "getInfo") {
+            result = {
+              platform: Deno.build.os === "windows" ? "win32" : Deno.build.os,
+              arch: Deno.build.arch,
+              type: "Windows_NT",
+              release: "10.0.22631",
+              hostname: Deno.env.get("COMPUTERNAME") || "DEV-PC",
+              homedir: Deno.env.get("USERPROFILE") || "C:\\Users",
+              tmpdir: Deno.env.get("TEMP") || "C:\\Temp",
+              totalmem: 16 * 1024 * 1024 * 1024,
+              freemem: 8 * 1024 * 1024 * 1024,
+              uptime: Math.floor(performance.now() / 1000),
+              cpuCount: cpus,
+              cpuid: "BFEBFBFF000306A9",
+              harddriveId: "DEV_DRIVE_0",
+              motherboardId: "DEV_BOARD_0",
+              fingerprint: "DEV_FINGERPRINT_ACTIVE",
+            };
+            handled = true;
+          } else if (action === "platform") {
+            result = Deno.build.os === "windows" ? "win32" : Deno.build.os;
+            handled = true;
+          } else if (action === "arch") {
+            result = Deno.build.arch;
+            handled = true;
+          } else if (action === "hostname") {
+            result = Deno.env.get("COMPUTERNAME") || "DEV-PC";
+            handled = true;
+          } else if (action === "homedir") {
+            result = Deno.env.get("USERPROFILE") || "C:\\Users";
+            handled = true;
+          } else if (action === "tmpdir") {
+            result = Deno.env.get("TEMP") || "C:\\Temp";
+            handled = true;
+          } else if (action === "uptime") {
+            result = Math.floor(performance.now() / 1000);
+            handled = true;
+          } else if (action === "cpuCount") {
+            result = cpus;
+            handled = true;
+          }
+        } else if (module === "appWindow" || module === "runtime/webui" || module === "webUI") {
+          if (action === "isFrameless") {
+            result = true;
+            handled = true;
+          } else if (action === "isMaximized") {
+            result = false;
+            handled = true;
+          } else if (action === "getSize") {
+            result = { width: 1100, height: 750 };
+            handled = true;
+          } else if (action === "getPosition") {
+            result = { x: 100, y: 100 };
+            handled = true;
+          } else if (action === "minimize" || action === "maximize" || action === "close" || action === "drag" || action === "dragWindow") {
+            result = true;
+            handled = true;
+          }
+        } else if (module === "tray") {
+          if (action === "isHideToTray") {
+            result = false;
+            handled = true;
+          } else {
+            result = true;
+            handled = true;
+          }
+        } else if (module === "process") {
+          if (action === "getInfo" || action === "env") {
+            result = {
+              pid: Deno.pid,
+              platform: Deno.build.os === "windows" ? "win32" : Deno.build.os,
+              arch: Deno.build.arch,
+              cwd: projectDir,
+              env: Deno.env.toObject(),
+              uptime: Math.floor(performance.now() / 1000),
+            };
+            handled = true;
+          } else if (action === "cwd") {
+            result = projectDir;
+            handled = true;
+          }
+        } else if (module === "network") {
+          if (action === "isOnline") {
+            result = true;
+            handled = true;
+          } else if (action === "ping") {
+            result = { ok: true, latencyMs: 5, alive: true, timeMs: 5 };
+            handled = true;
+          }
+        } else if (module === "fs") {
+          const target = args[0] ? String(args[0]) : "";
+          const fullPath = target.startsWith(":") || target.includes("\\") || target.includes("/")
+            ? target
+            : join(projectDir, target);
+          if (action === "exists" || action === "existsSync") {
+            try {
+              await Deno.stat(fullPath);
+              result = true;
+            } catch {
+              result = false;
+            }
+            handled = true;
+          } else if (action === "readFile" || action === "readFileSync") {
+            try {
+              result = await Deno.readTextFile(fullPath);
+            } catch (fsErr) {
+              result = "";
+            }
+            handled = true;
+          } else if (action === "readdir" || action === "readdirSync") {
+            try {
+              const entries = [];
+              for await (const dirEntry of Deno.readDir(fullPath)) {
+                entries.push(dirEntry.name);
+              }
+              result = entries;
+            } catch {
+              result = [];
+            }
+            handled = true;
+          }
+        } else if (module === "shell") {
+          if (action === "exec") {
+            const cmd = args[0] ? String(args[0]) : "";
+            try {
+              const p = new Deno.Command("cmd.exe", {
+                args: ["/c", cmd],
+                stdout: "piped",
+                stderr: "piped",
+              });
+              const output = await p.output();
+              result = {
+                stdout: new TextDecoder().decode(output.stdout),
+                stderr: new TextDecoder().decode(output.stderr),
+                exitCode: output.code,
+              };
+            } catch (err: any) {
+              result = {
+                stdout: "",
+                stderr: err.message || String(err),
+                exitCode: 1,
+              };
+            }
+            handled = true;
+          } else if (action === "openExternal") {
+            const target = args[0] ? String(args[0]) : "";
+            try {
+              const p = new Deno.Command("cmd.exe", {
+                args: ["/c", "start", "", target],
+              });
+              await p.output();
+              result = true;
+            } catch {
+              result = false;
+            }
+            handled = true;
+          }
+        }
+
+        if (handled) {
+          return new Response(JSON.stringify({ success: true, data: result }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, data: true }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      } catch (rpcErr: any) {
+        return new Response(
+          JSON.stringify({ success: false, error: rpcErr?.message || String(rpcErr) }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // Proxy WebSocket bridge if requested through dev server

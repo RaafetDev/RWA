@@ -968,7 +968,8 @@ static DWORD WINAPI SelfTestWorkerThread(LPVOID lpParam) {
 
         // RPC round-trip test via webui_script
         char rpcBuf[512] = {0};
-        webui_script(win, "return new Promise((res) => { if (typeof rita_module_call === 'function') { rita_module_call(JSON.stringify({module:'appWindow',action:'isFrameless',args:[]})).then(res); } else { res('NO_BRIDGE'); } });", 2, rpcBuf, sizeof(rpcBuf));
+        webui_script(win, "return new Promise((res) => { if (typeof rita_module_call === 'function') { rita_module_call(JSON.stringify({module:'appWindow',action:'isFrameless',args:[]})).then(res); } else { res('NO_BRIDGE:' + typeof window.webui + ':' + (window.webui ? typeof window.webui.call : 'no')); } });", 2, rpcBuf, sizeof(rpcBuf));
+        if (dbg) { fprintf(dbg, "[RitaWapp SelfTest] rpcBuf='%s'\n", rpcBuf); fflush(dbg); }
         if (strstr(rpcBuf, "\"success\":true") != NULL || strstr(rpcBuf, "true") != NULL) {
             rpcRoundTrip = true;
         } else {
