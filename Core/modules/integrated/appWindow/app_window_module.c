@@ -19,6 +19,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(RITA_MODULE_NET_ENABLE) && RITA_MODULE_NET_ENABLE
+void cleanup_net_module(void);
+#endif
+#if defined(RITA_MODULE_DGRAM_ENABLE) && RITA_MODULE_DGRAM_ENABLE
+void cleanup_dgram_module(void);
+#endif
+
 void register_app_window_module(void) {
     ritawapp_register_module("appWindow", handle_app_window_action);
 }
@@ -27,6 +34,7 @@ void handle_app_window_action(size_t window, const char* action, const char* jso
     if (strcmp(action, "isFrameless") == 0) {
         bool frameless = ritawapp_get_frameless_state();
         snprintf(response, max_resp, "{\"success\":true,\"data\":%s}", frameless ? "true" : "false");
+
     } else if (strcmp(action, "minimize") == 0) {
         HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
         if (hwnd) {
@@ -34,9 +42,11 @@ void handle_app_window_action(size_t window, const char* action, const char* jso
             if (ritawapp_tray_is_hide_to_tray_enabled()) {
                 ShowWindow(hwnd, SW_HIDE);
             } else {
+                PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
                 ShowWindow(hwnd, SW_MINIMIZE);
             }
 #else
+            PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
             ShowWindow(hwnd, SW_MINIMIZE);
 #endif
         }
@@ -52,11 +62,7 @@ void handle_app_window_action(size_t window, const char* action, const char* jso
         snprintf(response, max_resp, "{\"success\":true,\"data\":%s}", zoomed ? "true" : "false");
     } else if (strcmp(action, "close") == 0) {
         snprintf(response, max_resp, "{\"success\":true}");
-        HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
-        if (hwnd) {
-            PostMessage(hwnd, WM_CLOSE, 0, 0);
-        }
-        webui_exit();
+        ritawapp_request_graceful_exit(window);
     } else if (strcmp(action, "drag") == 0 || strcmp(action, "dragWindow") == 0) {
         HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
         if (hwnd) {

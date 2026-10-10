@@ -14,9 +14,9 @@
 
       <!-- Frameless Native Window Action Controls -->
       <div class="titlebar-controls" @mousedown.stop>
-        <button class="win-btn win-minimize" @click.stop="handleMinimize" title="Minimize">−</button>
-        <button class="win-btn win-maximize" @click.stop="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">{{ isMaximized ? '❐' : '□' }}</button>
-        <button class="win-btn win-close" @click.stop="handleClose" title="Close">✕</button>
+        <button class="win-btn win-minimize" @mousedown.stop @click.stop="handleMinimize" title="Minimize">−</button>
+        <button class="win-btn win-maximize" @mousedown.stop @click.stop="handleMaximize" :title="isMaximized ? 'Restore' : 'Maximize'">{{ isMaximized ? '❐' : '□' }}</button>
+        <button class="win-btn win-close" @mousedown.stop @click.stop="handleClose" title="Close">✕</button>
       </div>
     </header>
 
@@ -321,6 +321,10 @@ async function refreshOs() {
 const isMaximized = ref(false);
 
 function handleTitlebarMouseDown(e: MouseEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target && target.closest(".titlebar-controls, .win-btn")) {
+    return;
+  }
   if (e.button === 0) { // Primary left click
     webUI.dragWindow();
   }
@@ -331,7 +335,11 @@ async function handleMinimize() {
 }
 
 async function handleMaximize() {
-  await webUI.maximize();
+  if (isMaximized.value) {
+    await webUI.restore();
+  } else {
+    await webUI.maximize();
+  }
   try {
     isMaximized.value = await webUI.isMaximized();
   } catch {}
@@ -793,14 +801,15 @@ async function testExpress() {
     });
 
     const server = app.listen(19878, "127.0.0.1", async () => {
-      printLog("EXPRESS", "Express server listening on http://127.0.0.1:19878", "info");
+      const actualPort = server.port || 19878;
+      printLog("EXPRESS", `Express server listening on http://127.0.0.1:${actualPort}`, "info");
 
       try {
-        const respStatus = await desktopFetch("http://127.0.0.1:19878/api/status");
+        const respStatus = await desktopFetch(`http://127.0.0.1:${actualPort}/api/status`);
         const json = await respStatus.json();
         printLog("EXPRESS", `GET /api/status response:\n${JSON.stringify(json, null, 2)}`, "success");
 
-        const respHello = await desktopFetch("http://127.0.0.1:19878/api/hello/Developer");
+        const respHello = await desktopFetch(`http://127.0.0.1:${actualPort}/api/hello/Developer`);
         const text = await respHello.text();
         printLog("EXPRESS", `GET /api/hello/Developer response: "${text}"`, "success");
       } catch (e: any) {

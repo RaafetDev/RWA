@@ -36,6 +36,8 @@ static int s_next_dgram_id = 1;
 
 static void ensure_dgram_cs(void) {
     if (!s_dgram_cs_init) {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
         InitializeCriticalSection(&s_dgram_cs);
         s_dgram_cs_init = true;
     }
@@ -122,11 +124,12 @@ void handle_dgram_action(size_t window, const char* action, const char* json_req
         json_extract_arg(json_request, 1, addr_str, sizeof(addr_str));
         int port = atoi(port_str);
         if (port < 0) port = 0;
-        if (!addr_str[0]) strncpy(addr_str, "0.0.0.0", sizeof(addr_str) - 1);
+        if (!addr_str[0] || strcmp(addr_str, "0.0.0.0") == 0) strncpy(addr_str, "127.0.0.1", sizeof(addr_str) - 1);
 
         SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
         if (s == INVALID_SOCKET) {
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create UDP socket\"}");
+            int wsa_err = WSAGetLastError();
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create UDP socket (WSA: %d)\",\"wsaError\":%d}", wsa_err, wsa_err);
             return;
         }
 
@@ -142,13 +145,33 @@ void handle_dgram_action(size_t window, const char* action, const char* json_req
             sa.sin_addr.s_addr = htonl(INADDR_ANY);
         }
 
-        if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) != 0) {
-            closesocket(s);
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind UDP port %d\"}", port);
-            return;
+        int bind_res = bind(s, (struct sockaddr*)&sa, sizeof(sa));
+        int initial_wsa_err = (bind_res != 0) ? WSAGetLastError() : 0;
+        if (bind_res != 0) {
+            // Port busy: retry adjacent ports or port 0
+            bool rebound = false;
+            for (int retry_port = port + 1; retry_port <= port + 10; retry_port++) {
+                sa.sin_port = htons((unsigned short)retry_port);
+                if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
+                    port = retry_port;
+                    rebound = true;
+                    break;
+                }
+            }
+            if (!rebound) {
+                sa.sin_port = htons(0);
+                if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
+                    rebound = true;
+                }
+            }
+            if (!rebound) {
+                closesocket(s);
+                snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind UDP port (WSA: %d)\",\"wsaError\":%d}", initial_wsa_err, initial_wsa_err);
+                return;
+            }
         }
 
-        // Get actual bound port if port was 0
+        // Get actual bound port
         struct sockaddr_in bound_sa;
         int bound_len = sizeof(bound_sa);
         if (getsockname(s, (struct sockaddr*)&bound_sa, &bound_len) == 0) {
@@ -249,4 +272,18 @@ void handle_dgram_action(size_t window, const char* action, const char* json_req
     } else {
         snprintf(response, max_resp, "{\"success\":false,\"error\":\"Unknown dgram action: '%s'\"}", action);
     }
+}
+
+void cleanup_dgram_module(void) {
+    ensure_dgram_cs();
+    EnterCriticalSection(&s_dgram_cs);
+    for (int i = 0; i < MAX_DGRAM_SOCKETS; i++) {
+        if (s_dgram_sockets[i].s != INVALID_SOCKET && s_dgram_sockets[i].s != 0) {
+            s_dgram_sockets[i].active = false;
+            closesocket(s_dgram_sockets[i].s);
+            s_dgram_sockets[i].s = INVALID_SOCKET;
+            s_dgram_sockets[i].id = 0;
+        }
+    }
+    LeaveCriticalSection(&s_dgram_cs);
 }

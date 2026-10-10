@@ -201,6 +201,33 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
 
         if (module === "os") {
           const cpus = navigator.hardwareConcurrency || 8;
+          let diskId = "VOL_UNKNOWN";
+          let boardId = "MB_UNKNOWN";
+          let guid = "";
+          try {
+            const p = new Deno.Command("reg", {
+              args: ["query", "HKLM\\Software\\Microsoft\\Cryptography", "/v", "MachineGuid"],
+              stdout: "piped",
+              stderr: "null",
+            });
+            const out = await p.output();
+            const text = new TextDecoder().decode(out.stdout);
+            const m = text.match(/MachineGuid\s+REG_SZ\s+([A-Fa-f0-9\-]+)/);
+            if (m && m[1]) guid = m[1].trim();
+          } catch {}
+
+          if (!guid) {
+            guid = Deno.env.get("COMPUTERNAME") || "RITAWAPP_HOST";
+          }
+          diskId = guid;
+          boardId = guid;
+
+          const rawSeed = `${diskId}:${boardId}:${Deno.env.get("COMPUTERNAME") || ""}:${guid}`;
+          const hashBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawSeed));
+          const fingerprint = Array.from(new Uint8Array(hashBuf))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+
           if (action === "getInfo") {
             result = {
               platform: Deno.build.os === "windows" ? "win32" : Deno.build.os,
@@ -215,9 +242,9 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
               uptime: Math.floor(performance.now() / 1000),
               cpuCount: cpus,
               cpuid: "BFEBFBFF000306A9",
-              harddriveId: "DEV_DRIVE_0",
-              motherboardId: "DEV_BOARD_0",
-              fingerprint: "DEV_FINGERPRINT_ACTIVE",
+              harddriveId: diskId,
+              motherboardId: boardId,
+              fingerprint: fingerprint,
             };
             handled = true;
           } else if (action === "platform") {
@@ -241,6 +268,9 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
           } else if (action === "cpuCount") {
             result = cpus;
             handled = true;
+          } else if (action === "getFingerprint" || action === "fingerprint") {
+            result = fingerprint;
+            handled = true;
           }
         } else if (module === "appWindow" || module === "runtime/webui" || module === "webUI") {
           if (action === "isFrameless") {
@@ -255,7 +285,7 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
           } else if (action === "getPosition") {
             result = { x: 100, y: 100 };
             handled = true;
-          } else if (action === "minimize" || action === "maximize" || action === "close" || action === "drag" || action === "dragWindow") {
+          } else if (action === "minimize" || action === "maximize" || action === "restore" || action === "close" || action === "drag" || action === "dragWindow") {
             result = true;
             handled = true;
           }
@@ -291,36 +321,195 @@ else { document.addEventListener("DOMContentLoaded", __rwa_init__); }`,
             handled = true;
           }
         } else if (module === "fs") {
-          const target = args[0] ? String(args[0]) : "";
-          const fullPath = target.startsWith(":") || target.includes("\\") || target.includes("/")
-            ? target
-            : join(projectDir, target);
-          if (action === "exists" || action === "existsSync") {
-            try {
-              await Deno.stat(fullPath);
-              result = true;
-            } catch {
-              result = false;
-            }
+          if (action === "getAppDir") {
+            result = projectDir;
             handled = true;
-          } else if (action === "readFile" || action === "readFileSync") {
-            try {
-              result = await Deno.readTextFile(fullPath);
-            } catch (fsErr) {
-              result = "";
-            }
+          } else if (action === "getAssetsDir") {
+            result = join(projectDir, "dist");
             handled = true;
-          } else if (action === "readdir" || action === "readdirSync") {
-            try {
-              const entries = [];
-              for await (const dirEntry of Deno.readDir(fullPath)) {
-                entries.push(dirEntry.name);
+          } else {
+            const target = args[0] !== undefined && args[0] !== null ? String(args[0]) : "";
+            const isAbs = target.includes(":") || target.startsWith("\\\\") || target.startsWith("/");
+            const fullPath = isAbs ? target : join(projectDir, target);
+
+            if (action === "exists" || action === "existsSync") {
+              try {
+                await Deno.stat(fullPath);
+                result = true;
+              } catch {
+                result = false;
               }
-              result = entries;
-            } catch {
-              result = [];
+              handled = true;
+            } else if (action === "stat" || action === "statSync") {
+              try {
+                const info = await Deno.stat(fullPath);
+                result = {
+                  size: info.size,
+                  isFile: info.isFile,
+                  isDirectory: info.isDirectory,
+                  mtime: info.mtime ? info.mtime.toISOString() : new Date().toISOString(),
+                };
+              } catch {
+                return new Response(
+                  JSON.stringify({ success: false, error: "ENOENT: no such file or directory" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+              handled = true;
+            } else if (action === "readFile" || action === "readFileSync") {
+              try {
+                result = await Deno.readTextFile(fullPath);
+                handled = true;
+              } catch (fsErr: any) {
+                return new Response(
+                  JSON.stringify({ success: false, error: fsErr?.message || "ENOENT" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+            } else if (action === "writeFile" || action === "writeFileSync") {
+              const content = args[1] !== undefined ? String(args[1]) : "";
+              try {
+                await Deno.writeTextFile(fullPath, content);
+                result = true;
+                handled = true;
+              } catch (fsErr: any) {
+                return new Response(
+                  JSON.stringify({ success: false, error: fsErr?.message || "Write error" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+            } else if (action === "appendFile") {
+              const content = args[1] !== undefined ? String(args[1]) : "";
+              try {
+                await Deno.writeTextFile(fullPath, content, { append: true });
+                result = true;
+                handled = true;
+              } catch (fsErr: any) {
+                return new Response(
+                  JSON.stringify({ success: false, error: fsErr?.message || "Append error" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+            } else if (action === "mkdir" || action === "mkdirSync") {
+              try {
+                await Deno.mkdir(fullPath, { recursive: true });
+                result = true;
+                handled = true;
+              } catch (fsErr: any) {
+                return new Response(
+                  JSON.stringify({ success: false, error: fsErr?.message || "Mkdir error" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+            } else if (action === "unlink" || action === "unlinkSync") {
+              try {
+                await Deno.remove(fullPath);
+                result = true;
+                handled = true;
+              } catch (fsErr: any) {
+                return new Response(
+                  JSON.stringify({ success: false, error: fsErr?.message || "ENOENT" }),
+                  { headers: { "Content-Type": "application/json" } },
+                );
+              }
+            } else if (action === "readdir" || action === "readdirSync") {
+              try {
+                const entries = [];
+                for await (const dirEntry of Deno.readDir(fullPath)) {
+                  entries.push(dirEntry.name);
+                }
+                result = entries;
+                handled = true;
+              } catch {
+                result = [];
+                handled = true;
+              }
+            }
+          }
+        } else if (module === "db" || module === "database" || module === "mongoose") {
+          // Dev mock database store
+          const dbFilePath = join(projectDir, ".rwa_dev_db.json");
+          let store: Record<string, any[]> = {};
+          try {
+            const raw = await Deno.readTextFile(dbFilePath);
+            store = JSON.parse(raw);
+          } catch {}
+
+          const saveStore = async () => {
+            try {
+              await Deno.writeTextFile(dbFilePath, JSON.stringify(store, null, 2));
+            } catch {}
+          };
+
+          const collName = args[0] ? String(args[0]) : "default";
+          if (!store[collName]) store[collName] = [];
+          const list = store[collName];
+
+          if (action === "create" || action === "insert" || action === "insertOne") {
+            const doc = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+            if (!doc._id) {
+              doc._id = "doc_" + Math.random().toString(36).substring(2, 10);
+            }
+            list.push(doc);
+            await saveStore();
+            result = doc;
+            handled = true;
+          } else if (action === "find") {
+            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+            const filterKeys = Object.keys(filter);
+            if (filterKeys.length === 0) {
+              result = [...list];
+            } else {
+              result = list.filter((item) =>
+                filterKeys.every((k) => item[k] === filter[k])
+              );
             }
             handled = true;
+          } else if (action === "findOne") {
+            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+            const filterKeys = Object.keys(filter);
+            result = list.find((item) =>
+              filterKeys.every((k) => item[k] === filter[k])
+            ) || null;
+            handled = true;
+          } else if (action === "count" || action === "countDocuments") {
+            const filter = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+            const filterKeys = Object.keys(filter);
+            if (filterKeys.length === 0) {
+              result = list.length;
+            } else {
+              result = list.filter((item) =>
+                filterKeys.every((k) => item[k] === filter[k])
+              ).length;
+            }
+            handled = true;
+          } else if (action === "connect" || action === "disconnect") {
+            result = true;
+            handled = true;
+          }
+        } else if (module === "http" || module === "https") {
+          const reqUrl = args[0] ? String(args[0]) : "";
+          const opts = (typeof args[1] === "object" && args[1] !== null) ? args[1] : {};
+          try {
+            const fetchRes = await fetch(reqUrl, {
+              method: opts.method || (action === "post" ? "POST" : "GET"),
+              headers: opts.headers || {},
+              body: opts.body || undefined,
+            });
+            const textBody = await fetchRes.text();
+            result = {
+              statusCode: fetchRes.status,
+              statusText: fetchRes.statusText,
+              headers: Object.fromEntries(fetchRes.headers.entries()),
+              body: textBody,
+              data: textBody,
+            };
+            handled = true;
+          } catch (err: any) {
+            return new Response(
+              JSON.stringify({ success: false, error: err?.message || String(err) }),
+              { headers: { "Content-Type": "application/json" } },
+            );
           }
         } else if (module === "shell") {
           if (action === "exec") {

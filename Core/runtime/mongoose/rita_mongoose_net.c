@@ -376,6 +376,9 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
         return false;
     }
 
+    DWORD decodeOption = 1;
+    InternetSetOptionA(hRequest, INTERNET_OPTION_HTTP_DECODING, &decodeOption, sizeof(decodeOption));
+
     DWORD bodyLen = (body_str && body_str[0]) ? (DWORD)strlen(body_str) : 0;
     DWORD hdrLen = (headers_str && headers_str[0]) ? (DWORD)strlen(headers_str) : 0;
 
@@ -392,7 +395,8 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
     DWORD statLen = sizeof(statusCode);
     HttpQueryInfoA(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &statusCode, &statLen, NULL);
 
-    char* readBuf = (char*)malloc(65536);
+    size_t bufCap = 65536;
+    char* readBuf = (char*)malloc(bufCap);
     if (!readBuf) {
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
@@ -403,9 +407,18 @@ bool rita_mongoose_http_request(const char* url, const char* method, const char*
 
     DWORD bytesRead = 0;
     size_t totalBytes = 0;
-    while (InternetReadFile(hRequest, readBuf + totalBytes, 65535 - (DWORD)totalBytes, &bytesRead) && bytesRead > 0) {
+    char chunk[4096];
+    while (InternetReadFile(hRequest, chunk, sizeof(chunk), &bytesRead) && bytesRead > 0) {
+        if (totalBytes + bytesRead + 1 > bufCap) {
+            size_t newCap = bufCap * 2;
+            if (newCap < totalBytes + bytesRead + 1) newCap = totalBytes + bytesRead + 65536;
+            char* newBuf = (char*)realloc(readBuf, newCap);
+            if (!newBuf) break;
+            readBuf = newBuf;
+            bufCap = newCap;
+        }
+        memcpy(readBuf + totalBytes, chunk, bytesRead);
         totalBytes += bytesRead;
-        if (totalBytes >= 65534) break;
     }
     readBuf[totalBytes] = '\0';
 

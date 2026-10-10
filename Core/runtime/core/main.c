@@ -44,6 +44,10 @@
 #include "../../modules/integrated/tray/tray_module.h"
 #endif
 
+#if (defined(RITA_MODULE_HTTP_ENABLE) && RITA_MODULE_HTTP_ENABLE) || (defined(RITA_MODULE_WS_ENABLE) && RITA_MODULE_WS_ENABLE)
+#include "../mongoose/rita_mongoose_net.h"
+#endif
+
 #ifndef BCRYPT_SUCCESS
 #define BCRYPT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
 #endif
@@ -1486,6 +1490,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ritawapp_tray_destroy();
 #endif
 
+#if (defined(RITA_MODULE_HTTP_ENABLE) && RITA_MODULE_HTTP_ENABLE) || (defined(RITA_MODULE_WS_ENABLE) && RITA_MODULE_WS_ENABLE)
+    rita_mongoose_stop();
+#endif
+
 #if defined(RITA_MODULE_DATABASE_ENABLE) && RITA_MODULE_DATABASE_ENABLE
     rita_sqlite_close();
 #endif
@@ -1497,6 +1505,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     webui_clean();
+    ExitProcess(0);
     return 0;
 }
 

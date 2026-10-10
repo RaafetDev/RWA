@@ -79,31 +79,38 @@ static BOOL CALLBACK EnumProcessWindowsProc(HWND hwnd, LPARAM lParam) {
 }
 
 void* ritawapp_get_window_hwnd(size_t window) {
-    // 1. Direct query: Find "WebViewWindow" belonging to current process
     DWORD curPid = GetCurrentProcessId();
-    HWND hwnd = FindWindowExA(NULL, NULL, "WebViewWindow", NULL);
-    while (hwnd) {
-        DWORD pid = 0;
-        GetWindowThreadProcessId(hwnd, &pid);
-        if (pid == curPid && IsWindowVisible(hwnd)) {
-            break;
-        }
-        hwnd = FindWindowExA(NULL, hwnd, "WebViewWindow", NULL);
+    HWND hwnd = NULL;
+
+    // 1. Primary: Direct query via WebUI official Win32 HWND API
+    if (window > 0) {
+        hwnd = (HWND)webui_win32_get_hwnd(window);
+        if (!hwnd) hwnd = (HWND)webui_get_hwnd(window);
     }
 
-    // 2. Fallback: try WebUI internal API if available
-    if (!hwnd) hwnd = (HWND)webui_win32_get_hwnd(window);
-    if (!hwnd) hwnd = (HWND)webui_get_hwnd(window);
-
-    // 3. Fallback: EnumWindows for visible root window in this process
-    if (!hwnd) {
+    // 2. Fallback: EnumWindows for visible root window belonging to this process
+    if (!hwnd || !IsWindow(hwnd)) {
         FindProcessWindowData data = { curPid, NULL };
         EnumWindows(EnumProcessWindowsProc, (LPARAM)&data);
         if (data.hwnd) hwnd = data.hwnd;
     }
 
-    // 4. Fallback: Active foreground window
-    if (!hwnd) {
+    // 3. Fallback: Find "WebViewWindow" belonging to current process
+    if (!hwnd || !IsWindow(hwnd)) {
+        HWND h = FindWindowExA(NULL, NULL, "WebViewWindow", NULL);
+        while (h) {
+            DWORD pid = 0;
+            GetWindowThreadProcessId(h, &pid);
+            if (pid == curPid && IsWindowVisible(h)) {
+                hwnd = h;
+                break;
+            }
+            h = FindWindowExA(NULL, h, "WebViewWindow", NULL);
+        }
+    }
+
+    // 4. Fallback: Active foreground window if belonging to this process
+    if (!hwnd || !IsWindow(hwnd)) {
         HWND fg = GetForegroundWindow();
         if (fg) {
             DWORD fgPid = 0;
@@ -191,11 +198,66 @@ void ritawapp_window_toggle_maximize(size_t window) {
     }
 }
 
+#if defined(RITA_MODULE_NET_ENABLE) && RITA_MODULE_NET_ENABLE
+void cleanup_net_module(void);
+#endif
+#if defined(RITA_MODULE_DGRAM_ENABLE) && RITA_MODULE_DGRAM_ENABLE
+void cleanup_dgram_module(void);
+#endif
+#if defined(RITA_MODULE_DATABASE_ENABLE) && RITA_MODULE_DATABASE_ENABLE
+void rita_sqlite_close(void);
+#endif
+#if (defined(RITA_MODULE_HTTP_ENABLE) && RITA_MODULE_HTTP_ENABLE) || (defined(RITA_MODULE_WS_ENABLE) && RITA_MODULE_WS_ENABLE)
+void rita_mongoose_stop(void);
+#endif
+
+static DWORD WINAPI ExitTimeoutThread(LPVOID param) {
+    (void)param;
+    Sleep(2000);
+    ExitProcess(0);
+    return 0;
+}
+
+static volatile LONG s_exit_initiated = 0;
+
+void ritawapp_request_graceful_exit(size_t window) {
+    if (InterlockedCompareExchange(&s_exit_initiated, 1, 0) != 0) {
+        return;
+    }
+
+    // 1. Start 2-second fallback watchdog thread before cleanup
+    HANDLE hThread = CreateThread(NULL, 0, ExitTimeoutThread, NULL, 0, NULL);
+    if (hThread) CloseHandle(hThread);
+
+    // 2. Stop network servers & close sockets
+#if (defined(RITA_MODULE_HTTP_ENABLE) && RITA_MODULE_HTTP_ENABLE) || (defined(RITA_MODULE_WS_ENABLE) && RITA_MODULE_WS_ENABLE)
+    rita_mongoose_stop();
+#endif
+#if defined(RITA_MODULE_NET_ENABLE) && RITA_MODULE_NET_ENABLE
+    cleanup_net_module();
+#endif
+#if defined(RITA_MODULE_DGRAM_ENABLE) && RITA_MODULE_DGRAM_ENABLE
+    cleanup_dgram_module();
+#endif
+#if defined(RITA_MODULE_DATABASE_ENABLE) && RITA_MODULE_DATABASE_ENABLE
+    rita_sqlite_close();
+#endif
+
+    // 3. Close Win32 window and post quit message
+    HWND hwnd = (HWND)ritawapp_get_window_hwnd(window);
+    if (hwnd) {
+        PostMessage(hwnd, WM_CLOSE, 0, 0);
+    }
+    PostQuitMessage(0);
+    webui_exit();
+}
+
 // Built-in official WebUI window controls callbacks
 static void on_window_minimize(webui_event_t* e) {
     if (!e) return;
     HWND hwnd = (HWND)ritawapp_get_window_hwnd(e->window);
     if (hwnd) {
+        PostMessage(hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
         ShowWindow(hwnd, SW_MINIMIZE);
     }
 }
@@ -207,11 +269,7 @@ static void on_window_maximize(webui_event_t* e) {
 
 static void on_window_close(webui_event_t* e) {
     if (!e) return;
-    HWND hwnd = (HWND)ritawapp_get_window_hwnd(e->window);
-    if (hwnd) {
-        PostMessage(hwnd, WM_CLOSE, 0, 0);
-    }
-    webui_exit();
+    ritawapp_request_graceful_exit(e->window);
 }
 
 // Built-in integrated module forward declarations (strictly declared when enabled)

@@ -19,6 +19,8 @@
 #include <winioctl.h>
 #include <bcrypt.h>
 
+static void get_machine_guid(char* out, size_t max_len);
+
 /**
  * Extracts processor identification signature via x86/x64 CPUID instruction.
  */
@@ -70,7 +72,7 @@ static void get_harddrive_id(char* out, size_t max_len) {
     }
 
     // Fallback to System Volume Serial Number
-    if (strlen(out) == 0) {
+    if (strlen(out) == 0 || _stricmp(out, "None") == 0) {
         char sys_dir[MAX_PATH] = {0};
         char root[4] = "C:\\";
         if (GetSystemDirectoryA(sys_dir, sizeof(sys_dir)) > 0) {
@@ -82,8 +84,14 @@ static void get_harddrive_id(char* out, size_t max_len) {
         }
     }
 
-    if (strlen(out) == 0) {
-        snprintf(out, max_len, "VOL_UNKNOWN");
+    if (strlen(out) == 0 || _stricmp(out, "None") == 0) {
+        char guid[128] = {0};
+        get_machine_guid(guid, sizeof(guid));
+        if (guid[0]) {
+            snprintf(out, max_len, "DISK-%s", guid);
+        } else {
+            snprintf(out, max_len, "DISK-STABLE-STORAGE-0");
+        }
     }
 }
 
@@ -154,7 +162,13 @@ static void get_motherboard_id(char* out, size_t max_len) {
     } else if (strlen(prod) > 0) {
         snprintf(out, max_len, "%.60s-%.60s", mfg, prod);
     } else {
-        snprintf(out, max_len, "MB_GENERIC_BOARD");
+        char guid[128] = {0};
+        get_machine_guid(guid, sizeof(guid));
+        if (guid[0]) {
+            snprintf(out, max_len, "MB-%s", guid);
+        } else {
+            snprintf(out, max_len, "MB-STABLE-BOARD-0");
+        }
     }
 }
 

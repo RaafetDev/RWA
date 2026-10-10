@@ -90,6 +90,12 @@ void ritawapp_window_restore(size_t window);
  */
 bool ritawapp_window_is_maximized(size_t window);
 
+/**
+ * Initiates clean graceful termination: stops servers, cleans up sockets,
+ * posts quit message, and starts a 2s safety timer for ExitProcess.
+ */
+void ritawapp_request_graceful_exit(size_t window);
+
 // JSON helper utilities for module implementations
 bool json_extract_string(const char* json, const char* key, char* out_val, size_t max_len);
 bool json_extract_arg(const char* json, size_t index, char* out_val, size_t max_len);

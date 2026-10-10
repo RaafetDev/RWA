@@ -44,6 +44,8 @@ static int s_next_socket_id = 1;
 
 static void ensure_net_cs(void) {
     if (!s_net_cs_init) {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
         InitializeCriticalSection(&s_net_cs);
         s_net_cs_init = true;
     }
@@ -174,11 +176,12 @@ void handle_net_action(size_t window, const char* action, const char* json_reque
         json_extract_arg(json_request, 1, host, sizeof(host));
         int port = atoi(port_str);
         if (port <= 0) port = 3000;
-        if (!host[0]) strncpy(host, "0.0.0.0", sizeof(host) - 1);
+        if (!host[0] || strcmp(host, "0.0.0.0") == 0) strncpy(host, "127.0.0.1", sizeof(host) - 1);
 
         SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (s == INVALID_SOCKET) {
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create TCP socket\"}");
+            int wsa_err = WSAGetLastError();
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create TCP socket (WSA: %d)\",\"wsaError\":%d}", wsa_err, wsa_err);
             return;
         }
 
@@ -194,9 +197,41 @@ void handle_net_action(size_t window, const char* action, const char* json_reque
             sa.sin_addr.s_addr = htonl(INADDR_ANY);
         }
 
-        if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) != 0 || listen(s, SOMAXCONN) != 0) {
+        int bind_res = bind(s, (struct sockaddr*)&sa, sizeof(sa));
+        int initial_wsa_err = (bind_res != 0) ? WSAGetLastError() : 0;
+        if (bind_res != 0) {
+            // Port in use or busy: retry adjacent ports or port 0
+            bool rebound = false;
+            for (int retry_port = port + 1; retry_port <= port + 10; retry_port++) {
+                sa.sin_port = htons((unsigned short)retry_port);
+                if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
+                    port = retry_port;
+                    rebound = true;
+                    break;
+                }
+            }
+            if (!rebound) {
+                sa.sin_port = htons(0);
+                if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) == 0) {
+                    struct sockaddr_in bound_sa;
+                    int bound_len = sizeof(bound_sa);
+                    if (getsockname(s, (struct sockaddr*)&bound_sa, &bound_len) == 0) {
+                        port = ntohs(bound_sa.sin_port);
+                        rebound = true;
+                    }
+                }
+            }
+            if (!rebound) {
+                closesocket(s);
+                snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind TCP port (WSA: %d)\",\"wsaError\":%d}", initial_wsa_err, initial_wsa_err);
+                return;
+            }
+        }
+
+        if (listen(s, SOMAXCONN) != 0) {
+            int wsa_err = WSAGetLastError();
             closesocket(s);
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to bind/listen TCP port %d\"}", port);
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to listen TCP port %d (WSA: %d)\",\"wsaError\":%d}", port, wsa_err, wsa_err);
             return;
         }
 
@@ -240,7 +275,8 @@ void handle_net_action(size_t window, const char* action, const char* json_reque
 
         SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (s == INVALID_SOCKET) {
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create socket\"}");
+            int wsa_err = WSAGetLastError();
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Failed to create socket (WSA: %d)\",\"wsaError\":%d}", wsa_err, wsa_err);
             return;
         }
 
@@ -258,8 +294,9 @@ void handle_net_action(size_t window, const char* action, const char* json_reque
         memcpy(&sa.sin_addr, he->h_addr_list[0], he->h_length);
 
         if (connect(s, (struct sockaddr*)&sa, sizeof(sa)) != 0) {
+            int wsa_err = WSAGetLastError();
             closesocket(s);
-            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Connection refused to %s:%d\"}", host, port);
+            snprintf(response, max_resp, "{\"success\":false,\"error\":\"Connection refused to %s:%d (WSA: %d)\",\"wsaError\":%d}", host, port, wsa_err, wsa_err);
             return;
         }
 
@@ -339,4 +376,18 @@ void handle_net_action(size_t window, const char* action, const char* json_reque
     } else {
         snprintf(response, max_resp, "{\"success\":false,\"error\":\"Unknown net action: '%s'\"}", action);
     }
+}
+
+void cleanup_net_module(void) {
+    ensure_net_cs();
+    EnterCriticalSection(&s_net_cs);
+    for (int i = 0; i < MAX_NET_SOCKETS; i++) {
+        if (s_net_sockets[i].s != INVALID_SOCKET) {
+            s_net_sockets[i].active = false;
+            closesocket(s_net_sockets[i].s);
+            s_net_sockets[i].s = INVALID_SOCKET;
+            s_net_sockets[i].type = NET_SOCK_FREE;
+        }
+    }
+    LeaveCriticalSection(&s_net_cs);
 }
